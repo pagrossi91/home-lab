@@ -1,0 +1,179 @@
+version: '3'
+
+networks: 
+  wg-pihole: 
+    name: "wireguard-pihole" 
+    driver: bridge 
+    enable_ipv6: true
+    ipam: 
+      driver: default 
+      config:
+        - subnet: fdd6:24e8:ea4e::/64
+          # gateway: ${ROUTER_IPv6} # IPv6 of router (external)
+        - subnet: 172.30.0.0/24 # internal Docker network between pihole and wireguard, bridged
+
+services: 
+  duckdns:
+    image: lscr.io/linuxserver/duckdns:latest
+    container_name: duckdns
+    env_file:
+      - ../secrets.env
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+      SUBDOMAINS: ${DUCKDNS}
+      TOKEN: ${DUCKDNS_TOKEN}
+      LOG_FILE: false #optional
+    volumes:
+      - ./duckdns/config:/config #optional
+    restart: unless-stopped
+
+  # wireguard:
+  #   image: linuxserver/wireguard
+  #   container_name: wireguard
+  #   networks:
+  #     wg-pihole: 
+  #       ipv4_address: 172.30.0.3 # internal Docker address of wireguard
+  #       ipv6_address: fdd6:24e8:ea4e::3
+  #   environment:
+  #     PUID: ${LOCAL_USER}
+  #     PGID: ${LOCAL_USER}
+  #     TZ: ${TZ}
+  #     SERVERURL: ${DUCKDNS} #optional
+  #     SERVERPORT: 51820 #optional
+  #     PEERS: pgiphone, pgipad, pgmsi, lgiphone, lgipad, lgwork, misc1, misc2 # number, or list, of devices needing to connect to wireguard server
+  #     PEERDNS: 172.30.0.2 #optional # internal Docker address of pihole
+  #     INTERNAL_SUBNET: 10.13.13.0 #optional, ipv6 needs manual updating of conf files fd1a:d69f:1222::0/64
+  #     ALLOWEDIPS: 0.0.0.0/0, ::/0 #optional
+  #     PERSISTENTKEEPALIVE_PEERS: all
+  #     # LOG_CONFS: true
+  #   volumes:
+  #     - ./wireguard/wireguard-server/config:/config
+  #     - ./wireguard/lib/modules:/lib/modules
+  #   ports:
+  #     - 51820:51820/udp
+  #   cap_add:
+  #     - NET_ADMIN
+  #     - SYS_MODULE
+  #   dns: 
+  #     # - 192.168.1.99
+  #     - 172.30.0.2 # internal Docker address of pihole 
+  #   sysctls:
+  #     net.ipv4.conf.all.src_valid_mark: 1
+  #     net.ipv4.ip_forward: 1
+  #     # net.ipv6.conf.all.forwarding: 1
+  #     net.ipv6.conf.all.disable_ipv6: 0 # https://bodhilinux.boards.net/thread/450/wireguard-rtnetlink-answers-permission-denied
+  #     net.ipv6.conf.default.disable_ipv6: 0
+  #     net.ipv6.conf.lo.disable_ipv6: 0
+  #     # net.ipv6.conf.default.forwarding: 1
+  #     net.ipv6.conf.all.forwarding: 1
+  #     net.ipv6.conf.all.proxy_ndp: 1
+  #     # net.ipv6.conf.ens5.accept_ra: 2
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - phiole
+  #     - wg-ipv6-helper
+
+  # https://github.com/pi-hole/docker-pi-hole/blob/master/README.md
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
+    hostname: pihole-docker
+    # network_mode: host
+    networks:
+      wg-pihole:
+        ipv4_address: 172.30.0.2 # internal Docker address of pihole
+        ipv6_address: fdd6:24e8:ea4e::2
+    ports: # For DHCP it is recommended to remove these ports and instead add: network_mode: "host" - Disregard this when set up with a USER DEFINED NETWORK (e.g. used in conjunction with WIREGUARD)
+      - "53:53/tcp"
+      - "53:53/udp"
+      # - "67:67/udp" # Necessary when DHCP on its own but not necessary when used in conjunction with dhcp-helper. dhcp-helper is set to listen on UDP port 67 for DHCP requests instead which are then forwarded to Pi-Hole
+      - "80:80/tcp"
+    env_file:
+      - ../secrets.env
+    environment:
+      FTLCONF_LOCAL_IPV4: ${SERVER_IP}
+      FTLCONF_LOCAL_IPV6: ${SERVER_IPv6}
+      FTLCONF_DELAY_STARTUP: 5 # delays FTL startup until after wireguard
+      WEBPASSWORD: ${PIHOLE_WEBPASSWORD}
+      PIHOLE_DNS_: 1.1.1.1;1.0.0.1;2606:4700:4700::1111;2606:4700:4700::1001 # Cloudfare DNS; IPv4 and IPv6
+      DHCP_ACTIVE: true # if used, must add DHCP_START, DHCP_END, and DCHP_ROUTER environment variables
+      DHCP_START: ${DHCP_START}
+      DHCP_END: ${DHCP_END}
+      DHCP_ROUTER: ${DHCP_ROUTER_IP}
+      DHCP_IPv6: true
+      DNSMASQ_LISTENING: all # Necessary for USER DEFINED NETWORK
+      TZ: ${TZ}
+    volumes: # Volumes store your data between container upgrades
+      - './pi-hole/etc-pihole/:/etc/pihole/'
+      - './pi-hole/etc-dnsmasq.d/:/etc/dnsmasq.d/'
+      # run `touch ./var-log/pihole.log` first unless you like errors (doing this grants the container user "write" permissions to the logs)
+      - './pi-hole/var-log/pihole.log:/var/log/pihole.log' # pi-hole logs
+    cap_add:
+      - NET_ADMIN # Required if you are using Pi-hole as your DHCP server, else not needed
+    restart: unless-stopped
+    depends_on:
+      # - wireguard # force pi-hole to start after wireguard
+      - dhcphelper # force pi-hole to start after dhcphelper
+
+  # Runs a DHCP relay container that listens for DHCP discovery requests on the LAN and forwards them to Pihole on Docker’s internal network.
+  dhcphelper: 
+    container_name: dhcp-helper
+    build: ./dhcp-helper
+    restart: unless-stopped
+    network_mode: host # Resides on host network so it can listen for DHCP discovery requests from UDP port 67
+    command: -s 172.30.0.2 # Forwards to Internal Docker Address of pihole
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false" # excludes container from watchtower update
+    cap_add:
+      - NET_ADMIN
+
+  wg-ipv6-helper: # https://github.com/ironhalik/docker-wireguard/issues/1
+    image: alpine:latest
+    container_name: wg-ipv6-helper
+    command: ["ip", "-6", "route", "add", "${SERVER_IPv6}", "via", "fdd6:24e8:ea4e::3"]
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+
+  watchtower: # Home Assistant services excluded due to dependencies
+    container_name: watchtower
+    image: containrrr/watchtower:latest
+    hostname: watchtower-docker
+    env_file:
+      - ../secrets.env
+    environment:
+      TZ: ${TZ}
+      WATCHTOWER_CLEANUP: 'true'
+      # send email notification of update
+      WATCHTOWER_NOTIFICATIONS: 'email'
+      WATCHTOWER_NOTIFICATION_EMAIL_FROM: ${WATCHTOWER_NOTIFICATION_EMAIL_FROM}
+      WATCHTOWER_NOTIFICATION_EMAIL_TO: ${WATCHTOWER_NOTIFICATION_EMAIL_TO}
+      WATCHTOWER_NOTIFICATION_EMAIL_SERVER: ${WATCHTOWER_NOTIFICATION_EMAIL_SERVER}
+      WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PORT: ${WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PORT}
+      WATCHTOWER_NOTIFICATION_EMAIL_SERVER_USER: ${WATCHTOWER_NOTIFICATION_EMAIL_SERVER_USER}
+      WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD: ${WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD}
+    volumes:
+      - '/var/run/docker.sock:/var/run/docker.sock' # this directory tells watchtower what containers are available to update
+      # config.json only necessary if using custom docker respository (GitHub, etc). Not currently in use but mounting the drive anyway
+      - '../.docker/config.json:/config.json' # run `touch ../.docker/config.json` first unless you like errors
+    command: --schedule '0 0 3 * * *' # updates daily at 0300
+    #command: --interval 30 # updates every 30 seconds (for troubleshooting)
+    restart: unless-stopped
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    command: -H unix:///var/run/docker.sock
+    env_file:
+      - ../secrets.env
+    environment:
+      TZ: ${TZ}
+    ports:
+      - 9000:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./portainer/data:/data
+    restart: always

@@ -1,0 +1,69 @@
+# Set Home Assistant Port
+http:
+  server_port: 8123
+
+# Configure a default setup of Home Assistant (frontend, api, etc)
+default_config:
+#lovelace:
+#  mode: yaml
+
+# Set notification groups
+notify:
+  - platform: group
+    name: Pauls_Devices
+    services:
+      - service: mobile_app_pauls_iphone
+      - service: mobile_app_pauls_ipad
+
+media_source:
+
+# Text to speech
+tts:
+  - platform: google_translate
+
+group: !include groups.yaml
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+# amcrest:
+#   - host: !secret amcrest_ip_backyard
+#     username: !secret amcrest_uname
+#     password: !secret amcrest_pwd
+#   - host: !secret amcrest_ip_livingroom
+#     username: !secret amcrest_uname
+#     password: !secret amcrest_pwd
+
+# Adds zwave and zigbee functionality from GoControl Linear HUSBZB-1 USB stick
+# zwave:
+  # usb_path: /zwaveusbstick
+zha:
+  # usb_path: /zigbeeusbstick
+  database_path: /config/zigbee.db
+
+# spotify:
+#   client_id: !secret spotify_client_id
+#   client_secret: !secret spotify_client_secret
+
+# Use mariadb for database
+recorder:
+  purge_keep_days: 30
+  auto_purge: true
+  db_url: !secret db_url
+
+# Use influxdb and grafana for visualizations
+influxdb:
+  api_version: 2
+  ssl: false
+  host: localhost
+  port: 8086
+  token: !secret influx_token
+  organization: home-server
+  bucket: homeassistant
+
+# Monitor qBittorrent
+sensor:
+  - platform: qbittorrent
+    url: !secret qbit_url
+    username: !secret qbit_uname
+    password: !secret qbit_pwd

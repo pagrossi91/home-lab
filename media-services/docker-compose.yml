@@ -1,0 +1,78 @@
+version: "3"
+
+networks: 
+  vpn_network: 
+    name: "vpn_network"
+  # plex_network:
+  #   name: "plex_network"
+    
+services:
+  vpn:
+    image: ghcr.io/bubuntux/nordlynx # https://github.com/bubuntux/nordlynx
+    container_name: nordlynx
+    networks: 
+      - vpn_network
+    cap_add:
+      - NET_ADMIN # required
+    env_file:
+      - ../secrets.env
+    environment:
+      PRIVATE_KEY: ${Nord_PRIVATEKEY} # required
+      LISTEN_PORT: 51820
+      ADDRESS: ${Nord_IP}
+      DNS: 103.86.96.100, 103.86.99.100
+      ALLOWEDIPS: 0.0.0.0/0
+      PERSISTENT_KEEP_ALIVE: 25
+      TZ: ${TZ}
+      NETWORK: 192.168.1.0/24 # https://github.com/bubuntux/nordvpn
+    ports:
+      - 8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1 # May be required. (depends on multiple factors)
+      - net.ipv6.conf.all.disable_ipv6=1  # Recomended if using ipv4 only
+
+  torrent:
+    image: linuxserver/qbittorrent
+    container_name: qbittorrent
+    network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch' for torrenting without a VPN
+    env_file:
+      - ../secrets.env
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+      WEBUI_PORT: 8080 # The torrent service would be available at http://localhost:8080/ or anywhere inside of the local network http://192.168.1.xxx:8080
+    volumes:
+      - ./qbittorrent/config:/config
+      - ../../Media:/downloads
+    depends_on:
+      - vpn
+    restart: unless-stopped
+
+  pms:
+    image: plexinc/pms-docker
+    container_name: plex
+    hostname: plex-docker
+    network_mode: host 
+    # ports:
+    #   - 32400:32400/tcp
+    #   - 8324:8324/tcp
+    #   - 32469:32469/tcp
+    #   - 1900:1900/udp
+    #   - 32410:32410/udp
+    #   - 32412:32412/udp
+    #   - 32413:32413/udp
+    #   - 32414:32414/udp
+    env_file:
+      - ../secrets.env
+    environment:
+      TZ: ${TZ}
+      PLEX_CLAIM: ${PLEX_TOKEN}
+      # ADVERTISE_IP: http://${SERVER_IP}:32400/
+    volumes:
+      - ./plex/database:/config
+      - ./plex/transcode/temp:/transcode
+      - ../../Media:/data
+    restart: unless-stopped

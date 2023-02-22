@@ -1,0 +1,30 @@
+# First, ignore everything
+*
+
+# Now, whitelist anything that's a directory
+!*/
+
+# Whitelist all relevant, safe config files
+!.gitignore
+!/README.md
+
+!/media-services/README.md
+!/media-services/docker-compose.yml
+
+!/network-services/README.md
+!/network-services/docker-compose.yml
+!/network-services/pi-hole/etc-pihole/adlists.list
+!/network-services/dhcp-helper/**
+
+!/homeassistant/README.md
+!/homeassistant/docker-compose.yml
+!/homeassistant/config/blueprints/**
+# !/homeassistant/config/custom_components/**
+!/homeassistant/config/groups.yaml
+!/homeassistant/config/automations.yaml
+!/homeassistant/config/configuration.yaml
+!/homeassistant/config/scenes.yaml
+!/homeassistant/config/scripts.yaml
+!/homeassistant/config/ui-lovelace.yaml
+!/homeassistant/node-red/flows.json
+!/homeassistant/frigate/config.yml

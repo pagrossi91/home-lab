@@ -1,0 +1,475 @@
+- id: '1633540741690'
+  alias: When we leave
+  description: ''
+  trigger:
+  - platform: zone
+    entity_id: device_tracker.iphone
+    zone: zone.home
+    event: leave
+  - platform: zone
+    entity_id: device_tracker.lisa_grossis_iphone
+    zone: zone.home
+    event: leave
+  condition: []
+  action:
+  - device_id: 683dec3a4c221fb032d71b5daea816dd
+    domain: climate
+    entity_id: climate.home
+    type: set_preset_mode
+    preset_mode: Away
+  mode: single
+- id: '1633701597530'
+  alias: Lights on when cloudy
+  description: ''
+  trigger:
+  - type: value
+    platform: device
+    device_id: 1d6a3af30a71d77c9c5a4f6239e22b7f
+    entity_id: sensor.openweathermap_cloud_coverage
+    domain: sensor
+    above: 67.5
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  condition:
+  - condition: zone
+    entity_id: device_tracker.iphone
+    zone: zone.home
+  - condition: or
+    conditions:
+    - condition: zone
+      entity_id: device_tracker.lisa_grossis_iphone
+      zone: zone.home
+  - condition: sun
+    before: sunset
+    after: sunrise
+  action:
+  - type: turn_on
+    device_id: f6e985592c6468ed44df5bc42cc34161
+    entity_id: light.lamp
+    domain: light
+    brightness_pct: 100
+  - type: turn_on
+    device_id: 3ed4c940ed9a2632d86e2f2338799417
+    entity_id: light.kitchen_sink
+    domain: light
+    brightness_pct: 100
+  - type: turn_on
+    device_id: 24e3bd3e37476d7192ab7c54c6b64f6e
+    entity_id: light.computer
+    domain: light
+    brightness_pct: 100
+  mode: single
+- id: '1633701831548'
+  alias: Lights off when sunny
+  description: ''
+  trigger:
+  - type: value
+    platform: device
+    device_id: 1d6a3af30a71d77c9c5a4f6239e22b7f
+    entity_id: sensor.openweathermap_cloud_coverage
+    domain: sensor
+    below: 37.5
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  condition:
+  - condition: sun
+    before: sunset
+    after: sunrise
+    before_offset: 01:00:00
+    after_offset: 01:00:00
+  action:
+  - type: turn_off
+    device_id: f6e985592c6468ed44df5bc42cc34161
+    entity_id: light.lamp
+    domain: light
+  - type: turn_off
+    device_id: 3ed4c940ed9a2632d86e2f2338799417
+    entity_id: light.kitchen_sink
+    domain: light
+  - type: turn_off
+    device_id: 24e3bd3e37476d7192ab7c54c6b64f6e
+    entity_id: light.computer
+    domain: light
+  mode: single
+- id: '1633702230757'
+  alias: When we arrive
+  description: ''
+  trigger:
+  - platform: zone
+    entity_id: device_tracker.lisa_grossis_iphone
+    zone: zone.home
+    event: enter
+  - platform: zone
+    entity_id: device_tracker.iphone
+    zone: zone.home
+    event: enter
+  condition:
+  - condition: device
+    device_id: 683dec3a4c221fb032d71b5daea816dd
+    domain: climate
+    entity_id: climate.home
+    type: is_preset_mode
+    preset_mode: Sleep
+  action:
+  - device_id: 683dec3a4c221fb032d71b5daea816dd
+    domain: climate
+    entity_id: climate.home
+    type: set_preset_mode
+    preset_mode: Home
+  mode: single
+- id: '1633703625871'
+  alias: Garage Door Close (Paul)
+  description: ''
+  trigger:
+  - platform: zone
+    entity_id: device_tracker.iphone
+    zone: zone.home
+    event: leave
+  condition: []
+  action:
+  - device_id: fbb37115e5fcd7333802e849789403fa
+    domain: cover
+    entity_id: cover.garage_door
+    type: close
+  mode: single
+- id: '1633703653017'
+  alias: Garage Door Open (Paul)
+  description: ''
+  trigger:
+  - platform: zone
+    entity_id: device_tracker.iphone
+    zone: zone.home
+    event: enter
+  condition: []
+  action:
+  - device_id: fbb37115e5fcd7333802e849789403fa
+    domain: cover
+    entity_id: cover.garage_door
+    type: open
+  mode: single
+- id: '1633721018037'
+  alias: Garage Door Open (Lisa)
+  description: ''
+  trigger:
+  - platform: zone
+    entity_id: device_tracker.lisa_grossis_iphone
+    zone: zone.home
+    event: enter
+  condition: []
+  action:
+  - device_id: fbb37115e5fcd7333802e849789403fa
+    domain: cover
+    entity_id: cover.garage_door
+    type: open
+  mode: single
+- id: '1633721104643'
+  alias: Garage Door Close (Lisa)
+  description: ''
+  trigger:
+  - platform: zone
+    entity_id: device_tracker.lisa_grossis_iphone
+    zone: zone.home
+    event: leave
+  condition: []
+  action:
+  - device_id: fbb37115e5fcd7333802e849789403fa
+    domain: cover
+    entity_id: cover.garage_door
+    type: close
+  mode: single
+- id: '1633723460582'
+  alias: Lights on when partly cloudy
+  description: ''
+  trigger:
+  - type: value
+    platform: device
+    device_id: 1d6a3af30a71d77c9c5a4f6239e22b7f
+    entity_id: sensor.openweathermap_cloud_coverage
+    domain: sensor
+    above: 50
+    below: 62.5
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  condition:
+  - condition: zone
+    entity_id: device_tracker.iphone
+    zone: zone.home
+  - condition: or
+    conditions:
+    - condition: zone
+      entity_id: device_tracker.lisa_grossis_iphone
+      zone: zone.home
+  - condition: sun
+    before: sunset
+    after: sunrise
+  action:
+  - type: turn_on
+    device_id: f6e985592c6468ed44df5bc42cc34161
+    entity_id: light.lamp
+    domain: light
+    brightness_pct: 75
+  - type: turn_on
+    device_id: 3ed4c940ed9a2632d86e2f2338799417
+    entity_id: light.kitchen_sink
+    domain: light
+    brightness_pct: 75
+  - type: turn_on
+    device_id: 24e3bd3e37476d7192ab7c54c6b64f6e
+    entity_id: light.computer
+    domain: light
+    brightness_pct: 75
+  mode: single
+- id: '1647220881750'
+  alias: Turn off Computer light when no motion
+  description: ''
+  trigger:
+  - type: no_motion
+    platform: device
+    device_id: 2d871b5a7efccea83e1798c3dedaa709
+    entity_id: binary_sensor.linkind_zigbee_motion_sensor_office
+    domain: binary_sensor
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  condition:
+  - condition: not
+    conditions:
+    - condition: sun
+      before: sunset
+      before_offset: '30'
+      after: sunrise
+      after_offset: '30'
+  action:
+  - type: turn_off
+    device_id: 21330837e2d976cfbe2f8fd7ab9274b4
+    entity_id: light.ceiling
+    domain: light
+  mode: single
+- id: '1647222073982'
+  alias: Turn off Master light when no motion
+  description: ''
+  trigger:
+  - type: no_motion
+    platform: device
+    device_id: f4b73e7920b8992c70985819f23fb81d
+    entity_id: binary_sensor.linkind_zigbee_motion_sensor_master
+    domain: binary_sensor
+  condition:
+  - condition: not
+    conditions:
+    - condition: sun
+      before: sunset
+      before_offset: '30'
+      after: sunrise
+      after_offset: '30'
+    - condition: device
+      device_id: 683dec3a4c221fb032d71b5daea816dd
+      domain: climate
+      entity_id: climate.home
+      type: is_preset_mode
+      preset_mode: Sleep
+  action:
+  - type: turn_off
+    device_id: 6a8e8dbcb9d0d89550ed17b93687a8a9
+    entity_id: light.master_bedroom
+    domain: light
+  mode: single
+- id: '1647222132023'
+  alias: Turn on Master light when motion
+  description: ''
+  trigger:
+  - type: motion
+    platform: device
+    device_id: f4b73e7920b8992c70985819f23fb81d
+    entity_id: binary_sensor.linkind_zigbee_motion_sensor_master
+    domain: binary_sensor
+  condition:
+  - condition: not
+    conditions:
+    - condition: sun
+      before: sunset
+      before_offset: '30'
+      after: sunrise
+      after_offset: '30'
+  - condition: not
+    conditions:
+    - condition: device
+      device_id: 683dec3a4c221fb032d71b5daea816dd
+      domain: climate
+      entity_id: climate.home
+      type: is_preset_mode
+      preset_mode: Sleep
+  action:
+  - type: turn_on
+    device_id: 6a8e8dbcb9d0d89550ed17b93687a8a9
+    entity_id: light.master_bedroom
+    domain: light
+    brightness_pct: 25
+  mode: single
+- id: '1647223622339'
+  alias: Turn on Computer light when motion
+  description: ''
+  trigger:
+  - type: motion
+    platform: device
+    device_id: 2d871b5a7efccea83e1798c3dedaa709
+    entity_id: binary_sensor.linkind_zigbee_motion_sensor_office
+    domain: binary_sensor
+  condition:
+  - condition: state
+    entity_id: sun.sun
+    state: below_horizon
+  action:
+  - type: turn_on
+    device_id: 21330837e2d976cfbe2f8fd7ab9274b4
+    entity_id: light.ceiling
+    domain: light
+    brightness_pct: 100
+  mode: single
+- id: '1647980066341'
+  alias: Turn off Ecobee when Window/Door is open
+  description: ''
+  trigger:
+  - type: opened
+    platform: device
+    device_id: 4fdbde6e588e72d0863a49699098abd0
+    entity_id: binary_sensor.linkind_window_sensor_office_ias_zone
+    domain: binary_sensor
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  - type: opened
+    platform: device
+    device_id: 1971e3957e963791ba1d59ff5308c942
+    entity_id: binary_sensor.linkind_zigbee_sliding_door_ias_zone
+    domain: binary_sensor
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  condition: []
+  action:
+  - device_id: 683dec3a4c221fb032d71b5daea816dd
+    domain: climate
+    entity_id: climate.home
+    type: set_hvac_mode
+    hvac_mode: 'off'
+  - service: notify.mobile_app_pauls_iphone
+    data:
+      message: A window or door is open. Ecobee has been turned off.
+      title: 'Ecobee mode: OFF'
+  - service: notify.mobile_app_paul_s_ipad
+    data:
+      message: A window or door is open. Ecobee has been turned off.
+      title: 'Ecobee mode: OFF'
+  - service: notify.mobile_app_lisa_grossis_iphone
+    data:
+      message: A window or door is open. Ecobee has been turned off.
+      title: 'Ecobee mode: OFF'
+  mode: single
+- id: '1647980158152'
+  alias: Turn on Ecobee when Window/Door is closed
+  description: ''
+  trigger:
+  - type: not_opened
+    platform: device
+    device_id: 4fdbde6e588e72d0863a49699098abd0
+    entity_id: binary_sensor.linkind_window_sensor_office_ias_zone
+    domain: binary_sensor
+  - type: not_opened
+    platform: device
+    device_id: 1971e3957e963791ba1d59ff5308c942
+    entity_id: binary_sensor.linkind_zigbee_sliding_door_ias_zone
+    domain: binary_sensor
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  condition:
+  - condition: device
+    device_id: 683dec3a4c221fb032d71b5daea816dd
+    domain: climate
+    entity_id: climate.home
+    type: is_hvac_mode
+    hvac_mode: 'off'
+  action:
+  - device_id: 683dec3a4c221fb032d71b5daea816dd
+    domain: climate
+    entity_id: climate.home
+    type: set_hvac_mode
+    hvac_mode: heat_cool
+  - service: notify.mobile_app_pauls_iphone
+    data:
+      message: All windows and doors are closed. Ecobee has been set to auto.
+      title: 'Ecobee mode: AUTO'
+  - service: notify.mobile_app_paul_s_ipad
+    data:
+      message: All windows and doors are closed. Ecobee has been set to auto.
+      title: 'Ecobee mode: AUTO'
+  mode: single
+- id: '1674007001938'
+  alias: Motion detected in Living Room
+  trigger:
+  - platform: mqtt
+    topic: frigate/events
+    payload: new
+    value_template: '{{ value_json.type }}'
+  condition:
+  - condition: or
+    conditions:
+    - condition: device
+      device_id: 94ae31bf3e5228f960eae1261c1625c0
+      domain: device_tracker
+      entity_id: device_tracker.pauls_iphone
+      type: is_not_home
+    - condition: and
+      conditions:
+      - condition: device
+        type: is_off
+        device_id: 7f5d7b7b5daa9ac4eda1b5ac38596ad2
+        entity_id: light.bedroom
+        domain: light
+      - condition: device
+        type: is_off
+        device_id: 5b2a25d487e5214132ae6e99260ba3e1
+        entity_id: light.lamp
+        domain: light
+      - condition: device
+        type: is_off
+        device_id: f62b3c1fa2d32db78d33db6c3499b8b9
+        entity_id: light.kitchen_sink
+        domain: light
+      - condition: sun
+        before: sunrise
+        after: sunset
+  action:
+  - service: notify.Pauls_Devices
+    data:
+      message: A {{trigger.payload_json["after"]["label"] | replace('cat', 'pet')
+        | replace('dog', 'pet')}} was detected in the {{trigger.payload_json["after"]["camera"]
+        | replace('_', ' ') }}.
+      data:
+        image: https://192.168.1.100:8123/api/frigate/notifications/{{trigger.payload_json["after"]["id"]}}/thumbnail.jpg?format=android
+        tag: '{{trigger.payload_json["after"]["id"]}}'
+        when: '{{trigger.payload_json["after"]["start_time"]|int}}'
+        entity_id: camera.{{trigger.payload_json["after"]["camera"]}}
+- id: '1674013133906'
+  alias: Living Room Notifications v2
+  description: ''
+  use_blueprint:
+    path: hunterjm/frigate_0.10_notification.yaml
+    input:
+      notify_group: Pauls_Devices
+      update_thumbnail: true
+      camera: Living_Room
