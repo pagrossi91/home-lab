@@ -16,8 +16,6 @@ services:
   duckdns:
     image: lscr.io/linuxserver/duckdns:latest
     container_name: duckdns
-    env_file:
-      - ../secrets.env
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -90,8 +88,6 @@ services:
       - "53:53/udp"
       # - "67:67/udp" # Necessary when DHCP on its own but not necessary when used in conjunction with dhcp-helper. dhcp-helper is set to listen on UDP port 67 for DHCP requests instead which are then forwarded to Pi-Hole
       - "80:80/tcp"
-    env_file:
-      - ../secrets.env
     environment:
       FTLCONF_LOCAL_IPV4: ${SERVER_IP}
       FTLCONF_LOCAL_IPV6: ${SERVER_IPv6}
@@ -142,8 +138,6 @@ services:
     container_name: watchtower
     image: containrrr/watchtower:latest
     hostname: watchtower-docker
-    env_file:
-      - ../secrets.env
     environment:
       TZ: ${TZ}
       WATCHTOWER_CLEANUP: 'true'
@@ -167,8 +161,6 @@ services:
     image: portainer/portainer-ce:latest
     container_name: portainer
     command: -H unix:///var/run/docker.sock
-    env_file:
-      - ../secrets.env
     environment:
       TZ: ${TZ}
     ports:

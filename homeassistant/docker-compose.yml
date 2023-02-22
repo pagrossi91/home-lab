@@ -7,8 +7,6 @@ services:
     hostname: homeassistant-docker
     volumes:
       - ./config:/config
-    env_file:
-      - ../secrets.env
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -30,8 +28,6 @@ services:
     image: linuxserver/mariadb:latest
     hostname: mariadb-docker
     restart: unless-stopped
-    env_file:
-      - ../secrets.env
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -98,8 +94,6 @@ services:
       - ./node-red:/data # Local path where all Node-RED config will be stored.
     depends_on:
       - homeassistant
-    env_file:
-      - ../secrets.env
     environment:
       TZ: ${TZ}
     user: ${LOCAL_USER}:${LOCAL_USER}
@@ -122,8 +116,6 @@ services:
     container_name: amcrest2mqtt-backyard
     image: dchesterton/amcrest2mqtt:latest
     restart: unless-stopped
-    env_file:
-      - ../secrets.env
     environment:
         AMCREST_HOST: ${amcrest_ip_backyard}
         AMCREST_PASSWORD: ${amcrest_pwd}
@@ -140,8 +132,6 @@ services:
     restart: always
     tty: true
     stop_signal: SIGINT
-    env_file:
-      - ../secrets.env
     environment:
       #SESSION_SECRET: mysupersecretkey
       KEY_S0_Legacy: ${zwavejs2mqtt_s0legacykey}
@@ -185,8 +175,6 @@ services:
     ports:
       - 5000:5000
       # - 1935:1935 # RTMP feeds
-    env_file:
-      - ../secrets.env
     environment:
       FRIGATE_RTSP_PASSWORD: ${amcrest_pwd}
       # FRIGATE_MQTT_HOST: ${SERVER_IP}

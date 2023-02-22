@@ -14,8 +14,6 @@ services:
       - vpn_network
     cap_add:
       - NET_ADMIN # required
-    env_file:
-      - ../secrets.env
     environment:
       PRIVATE_KEY: ${Nord_PRIVATEKEY} # required
       LISTEN_PORT: 51820
@@ -37,8 +35,6 @@ services:
     image: linuxserver/qbittorrent
     container_name: qbittorrent
     network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch' for torrenting without a VPN
-    env_file:
-      - ../secrets.env
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -46,7 +42,7 @@ services:
       WEBUI_PORT: 8080 # The torrent service would be available at http://localhost:8080/ or anywhere inside of the local network http://192.168.1.xxx:8080
     volumes:
       - ./qbittorrent/config:/config
-      - ../../Media:/downloads
+      - ../Media:/downloads
     depends_on:
       - vpn
     restart: unless-stopped
@@ -65,8 +61,6 @@ services:
     #   - 32412:32412/udp
     #   - 32413:32413/udp
     #   - 32414:32414/udp
-    env_file:
-      - ../secrets.env
     environment:
       TZ: ${TZ}
       PLEX_CLAIM: ${PLEX_TOKEN}
@@ -74,5 +68,5 @@ services:
     volumes:
       - ./plex/database:/config
       - ./plex/transcode/temp:/transcode
-      - ../../Media:/data
+      - ../Media:/data
     restart: unless-stopped
