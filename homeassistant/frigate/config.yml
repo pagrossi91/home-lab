@@ -10,6 +10,7 @@ detectors:
 
 ffmpeg: # For AMD GPU, set container environment variable LIBVA_DRIVER_NAME=radeonsi
   hwaccel_args: -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 -hwaccel_output_format yuv420p # Intel-based CPUs (<10th Generation) via Quicksync
+  # hwaccel_args: preset-vaapi
 
 cameras:
   Backyard_Floodlight:

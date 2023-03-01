@@ -22,7 +22,7 @@ services:
       TZ: ${TZ}
       SUBDOMAINS: ${DUCKDNS}
       TOKEN: ${DUCKDNS_TOKEN}
-      LOG_FILE: false #optional
+      LOG_FILE: "false" #optional
     volumes:
       - ./duckdns/config:/config #optional
     restart: unless-stopped
@@ -94,11 +94,11 @@ services:
       FTLCONF_DELAY_STARTUP: 5 # delays FTL startup until after wireguard
       WEBPASSWORD: ${PIHOLE_WEBPASSWORD}
       PIHOLE_DNS_: 1.1.1.1;1.0.0.1;2606:4700:4700::1111;2606:4700:4700::1001 # Cloudfare DNS; IPv4 and IPv6
-      DHCP_ACTIVE: true # if used, must add DHCP_START, DHCP_END, and DCHP_ROUTER environment variables
+      DHCP_ACTIVE: "true" # if used, must add DHCP_START, DHCP_END, and DCHP_ROUTER environment variables
       DHCP_START: ${DHCP_START}
       DHCP_END: ${DHCP_END}
       DHCP_ROUTER: ${DHCP_ROUTER_IP}
-      DHCP_IPv6: true
+      DHCP_IPv6: "true"
       DNSMASQ_LISTENING: all # Necessary for USER DEFINED NETWORK
       TZ: ${TZ}
     volumes: # Volumes store your data between container upgrades
