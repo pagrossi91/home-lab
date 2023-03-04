@@ -1,0 +1,3 @@
+This is a(n) (incomplete) proof of concept project to demonstrate a docker container's network relying completely on another container. The vision is to determine feasibility of running all, or specific, network traffic through a VPN via docker containers with an internet kill switch and without using relying on configuring it in a router or separate firewall.
+
+Disclaimer: Do not use torrent clients for illegal/nefarious purposes!

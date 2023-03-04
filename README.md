@@ -1,8 +1,12 @@
-# An Idiot's Guide to My Home Server Setup <!-- omit in toc -->
+# My Home Lab For Dummies Setup <!-- omit in toc -->
 
-This guide is a work in progress. It is intended to be an end-to-end guide to set up a home server running various services via Docker. This will aid in replicating the server when I screw it up somehow and to document what I did and why I did it.
+NOTE: This guide is a work in progress. The documentation is being completely overhauled at the moment, so content may be incomplete, out of date, and/or very disjointed. 
+
+This guide is intended to be an end-to-end guide to set up a home server running various services via Docker. This will aid in replicating the server when I inevitably screw it up somehow and to document what I did and why I did it.
 
 Since it's already set up with Watchtower, Pi-Hole, and a basic Home Assistant setup running, the initial setup is the result of backtracking the steps I needed to take and, as a result, may not be completely comprehensive.
+
+Coming soon: Project Roadmap documented in GitHub's Issues feature.
 
 ### Table of Contents <!-- omit in toc -->
 - [1. Hardware and OS Setup](#1-hardware-and-os-setup)
@@ -337,3 +341,72 @@ TBD. Merge changes from _dev_ to _master_ branch.
     echo {} > ~/.docker/config
 
 - [How to access files from RPi microSD card via macOS](https://www.jeffgeerling.com/blog/2017/mount-raspberry-pi-sd-card-on-mac-read-only-osxfuse-and-ext4fuse)
+
+<!--- 
+Ubuntu Server LTS https://ubuntu.com/tutorials/install-ubuntu-server
+
+Set device's IP to static in DHCP server
+
+Setup up partitions https://systemzone.net/ubuntu-server-20-04-installation-with-lvm/
+ - 2G ext4 boot partition (also creates 1.049G /boot/efi)
+ - 2G swap partition
+ - skip /root, /home/, and /var. 
+ - Set blank, unformatted for remaining disk space and let Ubuntu configure it automatically
+ - Create volume group, select full volumes and unused partition from boot drive
+ - Create logical volume on lvm
+	- 4G, lv-root, format xfs, mount /
+Subnet 192.168.1.0/24
+Static IP 192.168.1.100
+Gateway 192.168.1.254
+
+
+UPDATED
+ - Set disk as boot device
+ - Set remaining space on that drive as blank, unformatted
+ - Create volume group, select full volumes and unused partition from boot drive
+
+Continue installation per prompts. When reboot completes, you can continue setup logged in directly to the server, or log in remotely via ssh. You cannot be logged in to the server directly and log in with the same account via SSH.
+If you used lvm, verify the drive is showing as the correct size with df -H /boot
+
+Update to latest
+	sudo do-release-upgrade 
+	sudo apt update
+	sudo apt upgrade
+	reboot
+
+Set static IP in pihole
+Add forwarded ports for new static IP in firewall (router)
+
+Copy files from current/backup location to new server with 
+	rsync -r --progress -e ssh  ~/Home-Server/ paul@192.168.1.100:/home/paul/home-server
+If using a new static IP, update SERVER_IP varibles in .env, secrets.yml, and frigate/config.yml
+
+Install docker with the latest instructions from https://docs.docker.com/engine/install/ubuntu/
+sudo apt-get update
+sudo apt-get install -y docker.io
+Skip hello-world test until running as non-root user
+Manage docker as non-root user https://docs.docker.com/engine/install/linux-postinstall/
+sudo groupadd docker # This should already exist from the docker installation
+sudo usermod -aG docker $USER
+newgrp docker
+docker run hello-world
+
+Install Docker Compose dependencies
+	sudo apt-get install -y libffi-dev libssl-dev
+	sudo apt-get install -y python3 python3-pip
+	sudo apt-get remove python-configparser
+
+Install Docker Compose
+	sudo pip3 -v install docker-compose
+
+Test installation of Docker Compose
+	docker-compose --version
+
+Git install is correct
+Detail where configurations are backed up. Git only provides capability to build from scratch
+
+Using ftp server to transfer files from Apple Time Capsule (via Windows) to Ubuntu 
+- https://www.addictivetips.com/ubuntu-linux-tips/host-an-ftp-server-on-linux/
+- https://www.addictivetips.com/ubuntu-linux-tips/connect-to-ubuntu-from-windows/
+
+-->
