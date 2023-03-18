@@ -379,7 +379,9 @@ Set static IP in pihole
 Add forwarded ports for new static IP in firewall (router)
 
 Copy files from current/backup location to new server with 
-	rsync -r --progress -e ssh  ~/Home-Server/ paul@192.168.1.100:/home/paul/home-server
+
+    rsync -r --progress -e ssh  ~/Home-Server/ paul@192.168.1.100:/home/paul/home-server
+
 If using a new static IP, update SERVER_IP varibles in .env, secrets.yml, and frigate/config.yml
 
 Install docker with the latest instructions from https://docs.docker.com/engine/install/ubuntu/
