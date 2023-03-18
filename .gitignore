@@ -9,7 +9,7 @@
 !/README.md
 
 !/media-services/README.md
-!/media-services/docker-compose.yml
+# !/media-services/docker-compose.yml
 
 !/network-services/README.md
 !/network-services/docker-compose.yml
