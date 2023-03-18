@@ -342,7 +342,8 @@ TBD. Merge changes from _dev_ to _master_ branch.
 
 - [How to access files from RPi microSD card via macOS](https://www.jeffgeerling.com/blog/2017/mount-raspberry-pi-sd-card-on-mac-read-only-osxfuse-and-ext4fuse)
 
-<!--- 
+------------------------
+
 Ubuntu Server LTS https://ubuntu.com/tutorials/install-ubuntu-server
 
 Set device's IP to static in DHCP server
@@ -408,5 +409,3 @@ Detail where configurations are backed up. Git only provides capability to build
 Using ftp server to transfer files from Apple Time Capsule (via Windows) to Ubuntu 
 - https://www.addictivetips.com/ubuntu-linux-tips/host-an-ftp-server-on-linux/
 - https://www.addictivetips.com/ubuntu-linux-tips/connect-to-ubuntu-from-windows/
-
--->
