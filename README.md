@@ -385,14 +385,18 @@ Copy files from current/backup location to new server with
 If using a new static IP, update SERVER_IP varibles in .env, secrets.yml, and frigate/config.yml
 
 Install docker with the latest instructions from https://docs.docker.com/engine/install/ubuntu/
-sudo apt-get update
-sudo apt-get install -y docker.io
+
+    sudo apt-get update
+    sudo apt-get install -y docker.io
+
 Skip hello-world test until running as non-root user
+
 Manage docker as non-root user https://docs.docker.com/engine/install/linux-postinstall/
-sudo groupadd docker # This should already exist from the docker installation
-sudo usermod -aG docker $USER
-newgrp docker
-docker run hello-world
+    
+    sudo groupadd docker # This should already exist from the docker installation
+    sudo usermod -aG docker $USER
+    newgrp docker
+    docker run hello-world
 
 Install Docker Compose dependencies
 	sudo apt-get install -y libffi-dev libssl-dev
