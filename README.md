@@ -399,15 +399,18 @@ Manage docker as non-root user https://docs.docker.com/engine/install/linux-post
     docker run hello-world
 
 Install Docker Compose dependencies
-	sudo apt-get install -y libffi-dev libssl-dev
-	sudo apt-get install -y python3 python3-pip
-	sudo apt-get remove python-configparser
+
+	  sudo apt-get install -y libffi-dev libssl-dev
+	  sudo apt-get install -y python3 python3-pip
+	  sudo apt-get remove python-configparser
 
 Install Docker Compose
-	sudo pip3 -v install docker-compose
+	  
+    sudo pip3 -v install docker-compose
 
 Test installation of Docker Compose
-	docker-compose --version
+	
+    docker-compose --version
 
 Git install is correct
 Detail where configurations are backed up. Git only provides capability to build from scratch
