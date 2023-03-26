@@ -19,7 +19,6 @@ services:
       TZ: ${TZ}
       DB_URL: ${DB_URL}
     restart: unless-stopped
-    # network_mode: host
     ports:
       - 8123:8123
     devices:
@@ -63,7 +62,6 @@ services:
       - ./influxdb/influxdb.conf:/etc/influxdb/influxdb.conf:ro
     # command: -config /etc/influxdb/influxdb.conf
     restart: always
-    # network_mode: host
     ports:
       - 8086:8086
       - 8083:8083 
@@ -78,22 +76,10 @@ services:
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini
     # command: --config /etc/grafana/grafana.ini
     restart: always
-    # network_mode: host
     ports:
       - 3000:3000
     depends_on:
       - influxdb
-
-
-  # speedtest:
-  #   image: atribe/speedtest-for-influxdb-and-grafana:latest
-  #   container_name: speedtest
-  #   network_mode: host
-  #   volumes:
-  #     - ./speedtest/config.ini:/src/config.ini
-  #   depends_on:
-  #     - influxdb
-  #   restart: always
 
   nodered:
     container_name: nodered
@@ -122,18 +108,7 @@ services:
     ports:
       - 1883:1883
       - 9001:9001
-
-  # amcrest2mqtt:
-  #   container_name: amcrest2mqtt-backyard
-  #   image: dchesterton/amcrest2mqtt:latest
-  #   restart: unless-stopped
-  #   environment:
-  #       AMCREST_HOST: ${amcrest_ip_backyard}
-  #       AMCREST_PASSWORD: ${amcrest_pwd}
-  #       MQTT_HOST: ${SERVER_IP}
-  #       MQTT_USERNAME: ${mosquitto_user}
-  #       MQTT_PASSWORD: ${mosquitto_pwd}
-  #       HOME_ASSISTANT: "true"
+    restart: unless-stopped
 
   zwavejs2mqtt:
     container_name: zwavejs2mqtt
@@ -150,8 +125,6 @@ services:
       KEY_S2_AccessControl: ${zwavejs2mqtt_s2accessctrlkey}
       ZWAVEJS_EXTERNAL_CONFIG: /usr/src/app/store/.config-db
       TZ: ${TZ}
-    # networks:
-    #   - zwave
     devices:
       # Do not use /dev/ttyUSBX serial devices, as those mappings can change over time.
       # Instead, use the /dev/serial/by-id/X serial device for your Z-Wave stick.
@@ -211,8 +184,24 @@ services:
   #     - homeassistant
   #   user: ${LOCAL_USER}:${LOCAL_USER}
 
-# networks:
-#   zwave:
-# volumes:
-#   zwave-config:
-#     name: zwave-config
+  # speedtest:
+  #   image: atribe/speedtest-for-influxdb-and-grafana:latest
+  #   container_name: speedtest
+  #   network_mode: host
+  #   volumes:
+  #     - ./speedtest/config.ini:/src/config.ini
+  #   depends_on:
+  #     - influxdb
+  #   restart: always
+  
+  # amcrest2mqtt:
+  #   container_name: amcrest2mqtt-backyard
+  #   image: dchesterton/amcrest2mqtt:latest
+  #   restart: unless-stopped
+  #   environment:
+  #       AMCREST_HOST: ${amcrest_ip_backyard}
+  #       AMCREST_PASSWORD: ${amcrest_pwd}
+  #       MQTT_HOST: ${SERVER_IP}
+  #       MQTT_USERNAME: ${mosquitto_user}
+  #       MQTT_PASSWORD: ${mosquitto_pwd}
+  #       HOME_ASSISTANT: "true"

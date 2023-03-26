@@ -369,5 +369,93 @@
         "wires": [
             []
         ]
+    },
+    {
+        "id": "fc95bb911fcaa08b",
+        "type": "trigger-state",
+        "z": "3b655143e886f252",
+        "name": "",
+        "server": "a555277e9f8b300c",
+        "version": 2,
+        "exposeToHomeAssistant": false,
+        "haConfig": [
+            {
+                "property": "name",
+                "value": ""
+            },
+            {
+                "property": "icon",
+                "value": ""
+            }
+        ],
+        "entityid": "person.paul_grossi",
+        "entityidfiltertype": "exact",
+        "debugenabled": false,
+        "constraints": [
+            {
+                "targetType": "this_entity",
+                "targetValue": "",
+                "propertyType": "current_state",
+                "propertyValue": "new_state.state",
+                "comparatorType": "is",
+                "comparatorValueDatatype": "str",
+                "comparatorValue": "Home"
+            }
+        ],
+        "inputs": 0,
+        "outputs": 2,
+        "customoutputs": [],
+        "outputinitially": false,
+        "state_type": "str",
+        "enableInput": false,
+        "x": 270,
+        "y": 260,
+        "wires": [
+            [],
+            []
+        ]
+    },
+    {
+        "id": "c3b9546f95534e1a",
+        "type": "api-call-service",
+        "z": "3b655143e886f252",
+        "name": "",
+        "server": "a555277e9f8b300c",
+        "version": 5,
+        "debugenabled": false,
+        "domain": "",
+        "service": "",
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "switch.office"
+        ],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "x": 610,
+        "y": 260,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "039f149b7acce98e",
+        "type": "ha-fire-event",
+        "z": "3b655143e886f252",
+        "name": "",
+        "server": "",
+        "version": 0,
+        "event": "",
+        "data": "",
+        "dataType": "jsonata",
+        "x": 870,
+        "y": 260,
+        "wires": [
+            []
+        ]
     }
 ]

@@ -78,11 +78,13 @@ services:
     container_name: pihole
     image: pihole/pihole:latest
     hostname: pihole-docker
-    # network_mode: host
     networks:
       wg-pihole:
         ipv4_address: 172.30.0.2 # internal Docker address of pihole
         ipv6_address: fdd6:24e8:ea4e::2
+    # dns:
+    #   - 127.0.0.1
+    #   - 1.1.1.1
     ports: # For DHCP it is recommended to remove these ports and instead add: network_mode: "host" - Disregard this when set up with a USER DEFINED NETWORK (e.g. used in conjunction with WIREGUARD)
       - "53:53/tcp"
       - "53:53/udp"
@@ -113,7 +115,7 @@ services:
       # - wireguard # force pi-hole to start after wireguard
       - dhcphelper # force pi-hole to start after dhcphelper
 
-  # Runs a DHCP relay container that listens for DHCP discovery requests on the LAN and forwards them to Pihole on Docker’s internal network.
+  # Runs a DHCP relay container that listens for DHCP discovery requests on the LAN and forwards them to Pihole on Docker’s internal network. Required with user defined network
   dhcphelper: 
     container_name: dhcp-helper
     build: ./dhcp-helper
@@ -125,16 +127,16 @@ services:
     cap_add:
       - NET_ADMIN
 
-  wg-ipv6-helper: # https://github.com/ironhalik/docker-wireguard/issues/1
-    image: alpine:latest
-    container_name: wg-ipv6-helper
-    command: ["ip", "-6", "route", "add", "${SERVER_IPv6}", "via", "fdd6:24e8:ea4e::3"]
-    network_mode: host
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
+  # wg-ipv6-helper: # https://github.com/ironhalik/docker-wireguard/issues/1
+  #   image: alpine:latest
+  #   container_name: wg-ipv6-helper
+  #   command: ["ip", "-6", "route", "add", "${SERVER_IPv6}", "via", "fdd6:24e8:ea4e::3"]
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #     - SYS_MODULE
 
-  watchtower: # Home Assistant services excluded due to dependencies
+  watchtower:
     container_name: watchtower
     image: containrrr/watchtower:latest
     hostname: watchtower-docker

@@ -22,3 +22,5 @@ https://docs.pi-hole.net/guides/dns/upstream-dns-providers/
 ## 9. Portainer
 
 https://www.nickneos.com/2020/09/14/migrating-home-assistant/
+
+Static IP for Ubuntu: https://www.linuxtechi.com/static-ip-address-on-ubuntu-server/ (suddenly needed to resolve IP address for homelab server with Pi-Hole as DHCP server)
