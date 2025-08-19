@@ -9,6 +9,11 @@ https://github.com/pi-hole/docker-pi-hole#readme
 
 https://discourse.pi-hole.net/t/ignoring-domain-config-domain-for-dhcp-host-name-hostname/52027/7
 
+
+When starting out, need to toggle Ubuntu DNS
+https://github.com/pi-hole/docker-pi-hole?tab=readme-ov-file#installing-on-ubuntu-or-fedora
+
+
 Pi-hole w/ wireguard
 Set up pi-hole on user-defined network (requires DHCP relay)
 https://discourse.pi-hole.net/t/dhcp-with-docker-compose-and-bridge-networking/17038

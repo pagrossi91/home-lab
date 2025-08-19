@@ -1,8 +1,14 @@
-version: '3.7'
+# version: '3'
 
 networks:
   homeassistant_network: 
     name: "homeassistant_network"
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+          gateway: 172.21.0.1
+  nginx_network:
+    external: true
 
 services:
   homeassistant:
@@ -10,61 +16,73 @@ services:
     image: homeassistant/home-assistant:stable
     hostname: homeassistant-docker
     networks: 
-      - homeassistant_network
+      homeassistant_network:
+        ipv4_address: 172.21.0.100 # Static Docker Home Assistant IP address on homeassistant_network
+      nginx_network:
+        ipv4_address: 172.18.0.100 # Static Docker Home Assistant IP address on nginx_network
     volumes:
       - ./config:/config
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
-      DB_URL: ${DB_URL}
-    restart: unless-stopped
+      # DB_URL: ${DB_URL}
+    # restart: unless-stopped
     ports:
       - 8123:8123
-    devices:
-      - /dev/ttyUSB0:/zwaveusbstick
-      - /dev/ttyUSB1:/zigbeeusbstick
+    # devices:
+    #   - /dev/ttyUSB0:/zwaveusbstick
+    #   - /dev/ttyUSB1:/zigbeeusbstick
     depends_on:
-      - mariadb
+      - mariadb-ha
       - influxdb
       - grafana
-      - mosquitto
-      - zwavejs2mqtt
-      - frigate
+      # - mosquitto
+      # - zwave-js-ui
+      # - frigate
 
-  mariadb:
-    container_name: mariadb
-    image: linuxserver/mariadb:latest
-    hostname: mariadb-docker
+  mariadb-ha:
+    container_name: mariadb-ha
+    image: mariadb:latest
+    hostname: mariadb-ha-docker
     networks: 
       - homeassistant_network
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${HA_MYSQL_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MARIADB_DATABASE: ${MYSQL_DATABASE}
+      MARIADB_USER: ${HA_USER}
+      MARIADB_PASSWORD: ${MYSQL_HA_PASSWORD}
+      MARIADB_AUTO_UPGRADE: true
     volumes:
-      - ./mariadb:/config # Local path where the database will be stored.
+      - ./mariadb-ha:/var/lib/mysql # Local path where the database will be stored for persistent history logs.
     ports:
       - 3306:3306
-    restart: unless-stopped
+    # restart: unless-stopped
 
   influxdb:
     image: influxdb:latest
     container_name: influxdb
     networks: 
       - homeassistant_network
+    environment:
+      # DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${HA_USER}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB2_PWD}
+      DOCKER_INFLUXDB_INIT_ORG: homelab
+      DOCKER_INFLUXDB_INIT_BUCKET: homeassistant
+      DOCKER_INFLUXDB_INIT_RETENTION: 1w
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB2_ADMINTOKEN}  
     volumes:
-      - ./influxdb:/var/lib/influxdb
-      - ./influxdb/influxdb.conf:/etc/influxdb/influxdb.conf:ro
-    # command: -config /etc/influxdb/influxdb.conf
-    restart: always
+     - ./influxdb2/data:/var/lib/influxdb2
+     - ./influxdb2/config:/etc/influxdb2
+     - ./influxdb2/scripts:/docker-entrypoint-initdb.d
+    # restart: always
     ports:
       - 8086:8086
-      - 8083:8083 
+      # - 8083:8083 
 
   grafana:
     image: grafana/grafana-oss:latest
@@ -73,9 +91,8 @@ services:
       - homeassistant_network
     volumes:
       - ./grafana:/var/lib/grafana
-      - ./grafana/grafana.ini:/etc/grafana/grafana.ini
-    # command: --config /etc/grafana/grafana.ini
-    restart: always
+    user: ${LOCAL_USER}
+    # restart: always
     ports:
       - 3000:3000
     depends_on:
@@ -96,7 +113,7 @@ services:
     environment:
       TZ: ${TZ}
     user: ${LOCAL_USER}:${LOCAL_USER}
-    restart: unless-stopped
+    # restart: unless-stopped
 
   mosquitto:
     container_name: mosquitto-mqtt
@@ -104,67 +121,81 @@ services:
     networks: 
       - homeassistant_network
     volumes:
-      - ./mosquitto:/mosquitto
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
     ports:
       - 1883:1883
       - 9001:9001
-    restart: unless-stopped
+    # restart: unless-stopped
 
-  zwavejs2mqtt:
-    container_name: zwavejs2mqtt
-    image: zwavejs/zwavejs2mqtt:latest
-    networks: 
-      - homeassistant_network
-    tty: true
-    stop_signal: SIGINT
-    environment:
-      #SESSION_SECRET: mysupersecretkey
-      KEY_S0_Legacy: ${zwavejs2mqtt_s0legacykey}
-      KEY_S2_Unauthenticated: ${zwavejs2mqtt_s2unauthkey}
-      KEY_S2_Authenticated: ${zwavejs2mqtt_s2authkey}
-      KEY_S2_AccessControl: ${zwavejs2mqtt_s2accessctrlkey}
-      ZWAVEJS_EXTERNAL_CONFIG: /usr/src/app/store/.config-db
-      TZ: ${TZ}
-    devices:
-      # Do not use /dev/ttyUSBX serial devices, as those mappings can change over time.
-      # Instead, use the /dev/serial/by-id/X serial device for your Z-Wave stick.
-      - /dev/serial/by-id/usb-Silicon_Labs_HubZ_Smart_Home_Controller_4150060D-if00-port0:/dev/zwave
-    volumes:
-      - ./zwave-config:/usr/src/app/store
-    ports:
-      - 8091:8091 # port for web interface
-      - 3001:3001 # port for Z-Wave JS websocket server
-    restart: always
+  # zwave-js-ui: # https://zwave-js.github.io/zwave-js-ui/#/getting-started/quick-start?id=docker
+  #   container_name: zwave-js-ui
+  #   image: zwavejs/zwave-js-ui:latest
+  #   networks: 
+  #     - homeassistant_network
+  #   tty: true
+  #   stop_signal: SIGINT
+  #   environment:
+  #     SESSION_SECRET: ${ZWAVE_SECRETKEY}
+  #     # KEY_S0_Legacy: ${zwavejs2mqtt_s0legacykey}
+  #     # KEY_S2_Unauthenticated: ${zwavejs2mqtt_s2unauthkey}
+  #     # KEY_S2_Authenticated: ${zwavejs2mqtt_s2authkey}
+  #     # KEY_S2_AccessControl: ${zwavejs2mqtt_s2accessctrlkey}
+  #     ZWAVEJS_EXTERNAL_CONFIG: /usr/src/app/store/.config-db
+  #     TZ: ${TZ}
+  #   devices:
+  #     # Do not use /dev/ttyUSBX serial devices, as those mappings can change over time.
+  #     # Instead, use the /dev/serial/by-id/X serial device for your Z-Wave stick.
+  #     - /dev/serial/by-id/usb-Silicon_Labs_HubZ_Smart_Home_Controller_4150060D-if00-port0:/dev/zwave
+  #   volumes:
+  #     - ./zwave-config:/usr/src/app/store
+  #   ports:
+  #     - 8091:8091 # port for web interface
+  #     - 3001:3001 # port for Z-Wave JS websocket server
+  #   restart: always
 
   frigate:
     container_name: frigate
     privileged: true # this may not be necessary for all setups
-    image: blakeblackshear/frigate:stable #-amd64
+    image: ghcr.io/blakeblackshear/frigate:stable
     networks: 
       - homeassistant_network
-    shm_size: 64mb # update for your cameras based on calculation above
+    shm_size: 306mb # update for your cameras based on calculation above
+    # group_add: # Groups required to use AMD GPU as video decoder (VA-API)
+    #   - 44 # video
+    #   - 107 # render
     devices:
       - /dev/bus/usb:/dev/bus/usb # passes the USB Coral, needs to be modified for other versions
       # - /dev/apex_0:/dev/apex_0 # passes a PCIe Coral, follow driver instructions here https://coral.ai/docs/m2/get-started/#2a-on-linux
-      - /dev/dri/renderD128 # for intel hwaccel, needs to be updated for your hardware
+      - /dev/dri/renderD128:/dev/dri/renderD128 # for intel hwaccel, needs to be updated for your hardware
+      # - /dev/dri # for AMD GPU video decoding
+      # - /dev/kfd # for AMD GPU acceleration with YOLO-NAS object detection model
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ./frigate/config.yml:/config/config.yml:ro
-      - ./frigate/storage:/media/frigate
-      # - type: tmpfs # Optional: 1GB of memory, reduces SSD/SD Card wear
-      #   target: /tmp/cache
-      #   tmpfs:
-      #     size: 1000000000
+      - ./frigate/config/config.yml:/config/config.yml
+      # - ./frigate/config/:/config/
+      # - ./frigate/labelmap/:/labelmap/:ro
+      - ../../RAIDdir/home_nvr/frigate/storage:/media/frigate
+      - type: tmpfs # Optional: 1GB of memory, reduces SSD/SD Card wear
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
     ports:
-      - 5000:5000
-      # - 1935:1935 # RTMP feeds
+      # - "8971:8971"
+      - "5000:5000" # Internal unauthenticated access. Expose carefully.
+      - "8554:8554" # RTSP feeds
+      - "8555:8555/tcp" # WebRTC over tcp
+      - "8555:8555/udp" # WebRTC over udp
     environment:
       FRIGATE_RTSP_PASSWORD: ${amcrest_pwd}
-      # FRIGATE_MQTT_HOST: ${SERVER_IP}
-      # FRIGATE_MQTT_USERNAME: ${mosquitto_user}
+      FRIGATE_MQTT_HOST: ${SERVER_IP}
+      FRIGATE_MQTT_USERNAME: ${HA_USER}
       FRIGATE_MQTT_PASSWORD: ${mosquitto_pwd}
-      # LIBVA_DRIVER_NAME: radeonsi # To enable AMD GPU hardware acceleration
-    restart: unless-stopped
+      # LIBVA_DRIVER_NAME: radeonsi # To enable AMD GPU hardware acceleration; doesn't work
+    # restart: unless-stopped
+    # depends_on:
+    #   - amcrest2mqtt_livingroom
 
   # appdaemon:
   #   container_name: appdaemon
@@ -194,14 +225,59 @@ services:
   #     - influxdb
   #   restart: always
   
-  # amcrest2mqtt:
+  # amcrest2mqtt_backyard:
   #   container_name: amcrest2mqtt-backyard
   #   image: dchesterton/amcrest2mqtt:latest
   #   restart: unless-stopped
+  #   networks: 
+  #     - homeassistant_network
   #   environment:
   #       AMCREST_HOST: ${amcrest_ip_backyard}
   #       AMCREST_PASSWORD: ${amcrest_pwd}
   #       MQTT_HOST: ${SERVER_IP}
-  #       MQTT_USERNAME: ${mosquitto_user}
+  #       MQTT_USERNAME: ${HA_USER}
   #       MQTT_PASSWORD: ${mosquitto_pwd}
   #       HOME_ASSISTANT: "true"
+
+  # amcrest2mqtt_livingroom:
+  #   container_name: amcrest2mqtt-livingroom
+  #   image: dchesterton/amcrest2mqtt:latest
+  #   # restart: unless-stopped
+  #   networks: 
+  #     - homeassistant_network
+  #   environment:
+  #       AMCREST_HOST: ${amcrest_ip_livingroom}
+  #       AMCREST_PASSWORD: ${amcrest_pwd}
+  #       MQTT_HOST: ${SERVER_IP}
+  #       MQTT_USERNAME: ${HA_USER}
+  #       MQTT_PASSWORD: ${mosquitto_pwd}
+  #       HOME_ASSISTANT: "true"
+
+  # python-matter-server
+  matter-server:
+    image: ghcr.io/home-assistant-libs/python-matter-server:stable
+    container_name: matter-server
+    restart: unless-stopped
+    # Required for mDNS to work correctly
+    network_mode: host
+    security_opt:
+      # Needed for Bluetooth via dbus
+      - apparmor:unconfined
+    volumes:
+      - ./matter/data:/data/
+      # Required for Bluetooth via D-Bus
+      - /run/dbus:/run/dbus:ro
+    # If you adjust command line, make sure to pass the default CMD arguments too:
+    #command: --storage-path /data --paa-root-cert-dir /data/credentials --bluetooth-adapter 0
+
+# volumes:
+#   # nvr:
+#       # driver_opts:
+#       #     type: cifs
+#       #     o: username=[username],password=[password],vers=3.0,file_mode=0777,dir_mode=0777 
+#       #     device: //[ip-address]/[path-to-directory]
+#   nvr:
+#       driver_opts:
+#           type: "nfs"
+#           o: "addr=${SERVER_IP},nolock,soft,rw"
+#           device: "../../RAIDdir/HomeSurveillance/scrypted"

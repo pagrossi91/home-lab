@@ -1,0 +1,219 @@
+{
+ "clientId": "ae759e18-2c10-44a4-9d35-08e5aa8dbe9d",
+ "vapidPrivate": "cnNE4wjghDIXfimbs2iI5INxxIQCJWaxQqB61bmuLGU",
+ "vapidPublic": "BEORpEC3yRby5CmwUkvmT8s-vTZPCLgnxJAq1WSY9dvbnw-fEMT1iKGMytXaatpJYX15FD7PZT5FExBQf0-I2qg",
+ "main": {
+  "apiKey": "MTc1Mjk3OTI1NDc1NDgyYmU0NWIwLWQ3MDktNDM1NC05NTQ4LTA2OGM1ZDc3ODRmNw==",
+  "applicationTitle": "Overseerr",
+  "applicationUrl": "",
+  "csrfProtection": false,
+  "cacheImages": false,
+  "defaultPermissions": 8388640,
+  "defaultQuotas": {
+   "movie": {
+    "quotaLimit": 0,
+    "quotaDays": 7
+   },
+   "tv": {
+    "quotaLimit": 0,
+    "quotaDays": 7
+   }
+  },
+  "hideAvailable": false,
+  "localLogin": true,
+  "newPlexLogin": true,
+  "region": "",
+  "originalLanguage": "",
+  "trustProxy": false,
+  "partialRequestsEnabled": true,
+  "locale": "en"
+ },
+ "plex": {
+  "name": "plex-docker",
+  "ip": "192-168-50-100.95a1d1db348b4e21a21bbec3345d32cb.plex.direct",
+  "port": 32400,
+  "useSsl": true,
+  "libraries": [
+   {
+    "id": "1",
+    "name": "Movies",
+    "enabled": true,
+    "type": "movie",
+    "lastScan": 1755572100020
+   },
+   {
+    "id": "2",
+    "name": "TV Shows",
+    "enabled": true,
+    "type": "show",
+    "lastScan": 1755572100051
+   }
+  ],
+  "webAppUrl": "",
+  "machineId": "3b175c381f7a12c5d98c797b430140827fbf069a"
+ },
+ "tautulli": {},
+ "radarr": [
+  {
+   "name": "radarr",
+   "hostname": "172.19.0.11",
+   "port": 7878,
+   "apiKey": "0c034c405a8b401ca32d333b6680c351",
+   "useSsl": false,
+   "baseUrl": "",
+   "activeProfileId": 1,
+   "activeProfileName": "REMUX + WEB 2160p",
+   "activeDirectory": "/data/media/movies",
+   "is4k": false,
+   "minimumAvailability": "released",
+   "tags": [],
+   "isDefault": true,
+   "syncEnabled": true,
+   "preventSearch": false,
+   "tagRequests": false,
+   "id": 0
+  }
+ ],
+ "sonarr": [
+  {
+   "name": "sonarr",
+   "hostname": "172.19.0.12",
+   "port": 8989,
+   "apiKey": "acd24693c56e40749449301965d56ee1",
+   "useSsl": false,
+   "baseUrl": "",
+   "activeProfileId": 7,
+   "activeLanguageProfileId": 1,
+   "activeProfileName": "WEB-2160p Alt",
+   "activeDirectory": "/data/media/tv",
+   "tags": [],
+   "animeTags": [],
+   "is4k": false,
+   "isDefault": true,
+   "enableSeasonFolders": true,
+   "syncEnabled": true,
+   "preventSearch": false,
+   "tagRequests": false,
+   "id": 0
+  }
+ ],
+ "public": {
+  "initialized": true
+ },
+ "notifications": {
+  "agents": {
+   "email": {
+    "enabled": false,
+    "options": {
+     "emailFrom": "",
+     "smtpHost": "",
+     "smtpPort": 587,
+     "secure": false,
+     "ignoreTls": false,
+     "requireTls": false,
+     "allowSelfSigned": false,
+     "senderName": "Overseerr"
+    }
+   },
+   "discord": {
+    "enabled": false,
+    "types": 0,
+    "options": {
+     "webhookUrl": "",
+     "enableMentions": true
+    }
+   },
+   "lunasea": {
+    "enabled": false,
+    "types": 0,
+    "options": {
+     "webhookUrl": ""
+    }
+   },
+   "slack": {
+    "enabled": false,
+    "types": 0,
+    "options": {
+     "webhookUrl": ""
+    }
+   },
+   "telegram": {
+    "enabled": false,
+    "types": 0,
+    "options": {
+     "botAPI": "",
+     "chatId": "",
+     "sendSilently": false
+    }
+   },
+   "pushbullet": {
+    "enabled": false,
+    "types": 0,
+    "options": {
+     "accessToken": ""
+    }
+   },
+   "pushover": {
+    "enabled": false,
+    "types": 0,
+    "options": {
+     "accessToken": "",
+     "userToken": "",
+     "sound": ""
+    }
+   },
+   "webhook": {
+    "enabled": true,
+    "types": 222,
+    "options": {
+     "webhookUrl": "https://homeassistant.lpgrossi18.duckdns.org/api/webhook/a058da1a24c086c815f665a0414dff7a9e01cd11139c3fc4a643cfa8be983782",
+     "jsonPayload": "IntcIm5vdGlmaWNhdGlvbl90eXBlXCI6XCJ7e25vdGlmaWNhdGlvbl90eXBlfX1cIixcInN1YmplY3RcIjpcInt7c3ViamVjdH19XCIsXCJtZXNzYWdlXCI6XCJ7e21lc3NhZ2V9fVwiLFwiaW1hZ2VcIjpcInt7aW1hZ2V9fVwiLFwie3ttZWRpYX19XCI6e1wibWVkaWFfdHlwZVwiOlwie3ttZWRpYV90eXBlfX1cIixcInRtZGJfaWRcIjpcInt7bWVkaWFfdG1kYmlkfX1cIixcInR2ZGJfaWRcIjpcInt7bWVkaWFfdHZkYmlkfX1cIixcInN0YXR1c1wiOlwie3ttZWRpYV9zdGF0dXN9fVwiLFwic3RhdHVzNGtcIjpcInt7bWVkaWFfc3RhdHVzNGt9fVwifSxcInt7cmVxdWVzdH19XCI6e1wicmVxdWVzdF9pZFwiOlwie3tyZXF1ZXN0X2lkfX1cIixcInJlcXVlc3RlZF9ieV9lbWFpbFwiOlwie3tyZXF1ZXN0ZWRCeV9lbWFpbH19XCIsXCJyZXF1ZXN0ZWRfYnlfdXNlcm5hbWVcIjpcInt7cmVxdWVzdGVkQnlfdXNlcm5hbWV9fVwiLFwicmVxdWVzdGVkX2J5X2F2YXRhclwiOlwie3tyZXF1ZXN0ZWRCeV9hdmF0YXJ9fVwiLFwicmVxdWVzdGVkX2J5X3NldHRpbmdzX2Rpc2NvcmRfaWRcIjpcInt7cmVxdWVzdGVkQnlfc2V0dGluZ3NfZGlzY29yZElkfX1cIixcInJlcXVlc3RlZF9ieV9zZXR0aW5nc190ZWxlZ3JhbV9jaGF0X2lkXCI6XCJ7e3JlcXVlc3RlZEJ5X3NldHRpbmdzX3RlbGVncmFtQ2hhdElkfX1cIn0sXCJ7e2lzc3VlfX1cIjp7XCJpc3N1ZV9pZFwiOlwie3tpc3N1ZV9pZH19XCIsXCJpc3N1ZV90eXBlXCI6XCJ7e2lzc3VlX3R5cGV9fVwiLFwiaXNzdWVfc3RhdHVzXCI6XCJ7e2lzc3VlX3N0YXR1c319XCIsXCJyZXBvcnRlZF9ieV9lbWFpbFwiOlwie3tyZXBvcnRlZEJ5X2VtYWlsfX1cIixcInJlcG9ydGVkX2J5X3VzZXJuYW1lXCI6XCJ7e3JlcG9ydGVkQnlfdXNlcm5hbWV9fVwiLFwicmVwb3J0ZWRfYnlfYXZhdGFyXCI6XCJ7e3JlcG9ydGVkQnlfYXZhdGFyfX1cIixcInJlcG9ydGVkX2J5X3NldHRpbmdzX2Rpc2NvcmRfaWRcIjpcInt7cmVwb3J0ZWRCeV9zZXR0aW5nc19kaXNjb3JkSWR9fVwiLFwicmVwb3J0ZWRfYnlfc2V0dGluZ3NfdGVsZWdyYW1fY2hhdF9pZFwiOlwie3tyZXBvcnRlZEJ5X3NldHRpbmdzX3RlbGVncmFtQ2hhdElkfX1cIn0sXCJ7e2NvbW1lbnR9fVwiOntcImNvbW1lbnRfbWVzc2FnZVwiOlwie3tjb21tZW50X21lc3NhZ2V9fVwiLFwiY29tbWVudGVkX2J5X2VtYWlsXCI6XCJ7e2NvbW1lbnRlZEJ5X2VtYWlsfX1cIixcImNvbW1lbnRlZF9ieV91c2VybmFtZVwiOlwie3tjb21tZW50ZWRCeV91c2VybmFtZX19XCIsXCJjb21tZW50ZWRfYnlfYXZhdGFyXCI6XCJ7e2NvbW1lbnRlZEJ5X2F2YXRhcn19XCIsXCJjb21tZW50ZWRfYnlfc2V0dGluZ3NfZGlzY29yZF9pZFwiOlwie3tjb21tZW50ZWRCeV9zZXR0aW5nc19kaXNjb3JkSWR9fVwiLFwiY29tbWVudGVkX2J5X3NldHRpbmdzX3RlbGVncmFtX2NoYXRfaWRcIjpcInt7Y29tbWVudGVkQnlfc2V0dGluZ3NfdGVsZWdyYW1DaGF0SWR9fVwifX0i"
+    }
+   },
+   "webpush": {
+    "enabled": false,
+    "options": {}
+   },
+   "gotify": {
+    "enabled": false,
+    "types": 0,
+    "options": {
+     "url": "",
+     "token": ""
+    }
+   }
+  }
+ },
+ "jobs": {
+  "plex-recently-added-scan": {
+   "schedule": "0 */5 * * * *"
+  },
+  "plex-full-scan": {
+   "schedule": "0 0 3 * * *"
+  },
+  "plex-watchlist-sync": {
+   "schedule": "0 */3 * * * *"
+  },
+  "plex-refresh-token": {
+   "schedule": "0 0 5 * * *"
+  },
+  "radarr-scan": {
+   "schedule": "0 0 4 * * *"
+  },
+  "sonarr-scan": {
+   "schedule": "0 30 4 * * *"
+  },
+  "availability-sync": {
+   "schedule": "0 0 5 * * *"
+  },
+  "download-sync": {
+   "schedule": "0 * * * * *"
+  },
+  "download-sync-reset": {
+   "schedule": "0 0 1 * * *"
+  },
+  "image-cache-cleanup": {
+   "schedule": "0 0 5 * * *"
+  }
+ }
+}

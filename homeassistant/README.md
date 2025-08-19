@@ -302,3 +302,87 @@ So far this has fixed playback in Home Assistant on Firefox, but playback in the
 #### 7.4. Home Assistant Notifications for Frigate Events
 
 Not operational yet. [Start here](https://docs.frigate.video/guides/ha_notifications).
+
+## MariaDB
+
+MariaDB utilizes the `recorder` integration as an extension of the `history` integration to track all activity in Home Assistant.  MariaDB can provide a boost in performance retrieving history logs for large data sets. 
+[maybe true?]: This can be useful for creating custom dashboards with Grafana or intricate commands, e.g. based on a series of historical log entries instead of just the current state.
+
+Home Assistent depends on MariaDB to run properly now and will not run if MariaDB encounters a problem. MariaDB is configured to keep logs for 30 days and automatically purge after that. This is accomplished in Home Assistant's `configuration.yaml` file
+
+    # Use mariadb for database
+    recorder:
+    purge_keep_days: 30
+    auto_purge: true
+    db_url: !secret db_url
+
+History logs are persistent through docker containers via the mounted volume, stored on the local host at `./mariadb`
+
+## Mosquitto MQTT Broker
+
+Source: https://sequr.be/blog/2022/09/home-assistant-container-part-4-mosquitto-docker-container/
+
+Initialize the config, data, and log volumes. In config, `touch mosquitto.conf` and `touch mqttuser`.
+
+Add the following configuration to `mosquitto.conf`
+
+    # Listen on port 1883 on all IPv4 interfaces
+    listener 1883
+    socket_domain ipv4
+
+    # Save the in-memory database to disk
+    persistence true
+    persistence_location /mosquitto/data/
+
+    # Log to stderr and logfile
+    log_dest stderr
+    log_dest file /mosquitto/log/mosquitto.log
+
+    # Require authentication
+    allow_anonymous false
+    password_file /mosquitto/config/mqttuser
+
+Build the container, then run 
+
+    docker exec -it mosquitto-mqtt mosquitto_passwd -c /mosquitto/config/mqttuser ha_user
+
+You will then be asked to set a password. Next, in the container, run `chmod 0700 /mosquitto/config/mqttuser` to fix the "world readable permissions" error for mqttuser. Then restart the container.
+
+### Configure Mosquitto with Home Assistant
+
+In Devices & Entities, add the MQTT integration. Configure MQTT with the details of the mqtt broker. The broker can be the docker host's IP address or the container name. Username and password is the same as above.
+
+    broker: mosquitto-mqtt
+    port: 1883
+    username: ha_user
+    password: mosquitto_pwd
+
+Adding configuration information in `configuration.yaml` will make MQTT not work, so don't do that.
+
+(Source: https://www.espboards.dev/blog/secure-mqtt-broker-docker-hass/) You can test the MQTT connection to Home Assistant by selecting "Configure" in the MQTT integration, add a topic to in the `Listen to a topic`, such as `homeassistant/test`, and click Start Listening.
+
+    docker exec -it mosquitto-mqtt mosquitto_pub -h localhost -t homeassistant/test -m "Hello MQTT" -u mqttuser -P yourpassword
+
+where `mosquitto-mqtt` is the container name, `homeassistant/test` is the topic you're listening on above. Be sure to also update `mqttuser` and `yourpassword` to the authorized user set for Home Assistant. When run the command, you should see "Hello MQTT" populate in the MQTT integration on Home Assistant.
+
+You can also test MQTT from completely within the MQTT integration. In `Publish a packet`, set the topic again to match what is set in the `Listen to a topic` section, e.g. homeassistant/test. Enter a random message in `Payload`, e.g. "Hello World", and press Publish. The message should appear on the listening side.
+
+## Color Codes
+
+Generated via ChatGPT
+
+### Severity
+Purple: #7D3C98 (Amethyst)
+Yellow: #F4D03F (Goldenrod)
+Orange: #E67E22 (Carrot Orange)
+Red: #C0392B (Carmine)
+Green: #27AE60 (Jade Green)
+
+### Temperature
+60°F (Cooler Green): #2ECC71 (Emerald Green)
+65°F (Green-Yellow Transition): #A2D93D (Lime Green)
+70°F (Warm Yellow): #F4D03F (Goldenrod Yellow)
+75°F (Yellow-Orange Transition): #F39C12 (Sunburst Orange)
+80°F (Vibrant Orange): #E67E22 (Carrot Orange)
+85°F (Red-Orange Transition): #D35400 (Dark Orange)
+90°F (Hot Red-Purple): #C0392B (Carmine Red)

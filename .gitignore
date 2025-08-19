@@ -1,30 +1,53 @@
-# First, ignore everything
-*
 
-# Now, whitelist anything that's a directory
-!*/
+*.env
+*.db
+*.sample
+*.pem
+*.key
 
-# Whitelist all relevant, safe config files
-!.gitignore
-!/README.md
+cloud/immich/ml/*
+cloud/mariadb-nc/*
+cloud/nextcloud/*
+!cloud/nextcloud/config/www/nextcloud/config/config.php
 
-!/media-services/README.md
-# !/media-services/docker-compose.yml
+homeassistant/config/secrets.yaml
+homeassistant/config/.storage/
 
-!/network-services/README.md
-!/network-services/docker-compose.yml
-!/network-services/pi-hole/etc-pihole/adlists.list
-!/network-services/dhcp-helper/**
+homeassistant/frigate/
+!homeassistant/frigate/config/config.yml
+homeassistant/grafana/*
+homeassistant/influxdb2/*
+homeassistant/mariadb-ha/*
+homeassistant/matter/*
+homeassistant/mosquitto/*
+homeassistant/node-red/*
+homeassistant/secure-remote-access/*
+homeassistant/zwave-config/*
 
-!/homeassistant/README.md
-!/homeassistant/docker-compose.yml
-!/homeassistant/config/blueprints/**
-# !/homeassistant/config/custom_components/**
-!/homeassistant/config/groups.yaml
-!/homeassistant/config/automations.yaml
-!/homeassistant/config/configuration.yaml
-!/homeassistant/config/scenes.yaml
-!/homeassistant/config/scripts.yaml
-!/homeassistant/config/ui-lovelace.yaml
-!/homeassistant/node-red/flows.json
-!/homeassistant/frigate/config.yml
+media-services/plex/*
+media-services/qbittorrent/*
+media-services/bazarr/*
+!media-services/bazarr/config.yaml
+media-services/lidarr/*
+!media-services/lidarr/config.xml
+media-services/prowlarr/*
+!media-services/prowlarr/config.xml
+media-services/sonarr/*
+!media-services/sonarr/config.xml
+media-services/radarr/*
+!media-services/radarr/config.xml
+media-services/recyclarr/*
+!media-services/recyclarr/recyclarr.yml
+media-services/sabnzbd/*
+!media-services/sabnzbd/sabnzbd.ini
+media-services/overseerr/*
+!media-services/overseerr/settings.json
+
+network-services/dnscrypt/*
+!network-services/dnscrypt/proxy/
+#config/dnscrypt-proxy.toml
+network-services/portainer/*
+network-services/pi-hole/*
+!network-services/pi-hole/etc-pihole/gravity.db
+!network-services/pi-hole/etc-pihole/config_backups/*
+network-services/swag/*

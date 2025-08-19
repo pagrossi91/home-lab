@@ -1,6 +1,19 @@
 # Set Home Assistant Port
 http:
   server_port: 8123
+  ip_ban_enabled: true # blocks unathorized ips from accessing HA
+  login_attempts_threshold: 5 # number of attempts before ip is banned
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - !secret server_IP # Local LAN
+    - 172.18.0.0/24 # Docker nginx network
+    - 172.21.0.0/24 # Docker home assistant network
+
+# Enable forwarding to DuckDNS subdomain
+duckdns:
+  domain: !secret duckdns_domain
+  access_token: !secret duckdns_token
+
 
 # Configure a default setup of Home Assistant (frontend, api, etc)
 default_config:
@@ -16,6 +29,9 @@ notify:
       - service: mobile_app_pauls_ipad
 
 media_source:
+
+# Enable live streaming of Amcrest AD410 doorbell via Dahua integration
+# ffmeg:
 
 # Text to speech
 tts:
@@ -51,19 +67,19 @@ recorder:
   auto_purge: true
   db_url: !secret db_url
 
-# Use influxdb and grafana for visualizations
+# # Use influxdb and grafana for visualizations
 influxdb:
   api_version: 2
+  host: influxdb
   ssl: false
-  host: localhost
   port: 8086
   token: !secret influx_token
-  organization: home-server
+  organization: homelab
   bucket: homeassistant
 
-# Monitor qBittorrent
-sensor:
-  - platform: qbittorrent
-    url: !secret qbit_url
-    username: !secret qbit_uname
-    password: !secret qbit_pwd
+# # Monitor qBittorrent
+# sensor:
+#   - platform: qbittorrent
+#     url: !secret qbit_url
+#     username: !secret qbit_uname
+#     password: !secret qbit_pwd

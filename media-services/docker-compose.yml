@@ -1,75 +1,304 @@
-version: "3"
-
 networks: 
-  vpn_network: 
-    name: "vpn_network"
-  # plex_network:
-  #   name: "plex_network"
-    
+  vpn: 
+    name: "vpn"
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
+          gateway: 172.19.0.1
+  nginx_network:
+    external: true
+     
 services:
-  vpn:
-    image: ghcr.io/bubuntux/nordlynx # https://github.com/bubuntux/nordlynx
-    container_name: nordlynx
-    networks: 
-      - vpn_network
-    cap_add:
-      - NET_ADMIN # required
-    environment:
-      PRIVATE_KEY: ${Nord_PRIVATEKEY} # required
-      LISTEN_PORT: 51820
-      ADDRESS: ${Nord_IP}
-      DNS: 103.86.96.100, 103.86.99.100
-      ALLOWEDIPS: 0.0.0.0/0
-      PERSISTENT_KEEP_ALIVE: 25
-      TZ: ${TZ}
-      NETWORK: 192.168.1.0/24 # https://github.com/bubuntux/nordvpn
+  pms:
+    image: plexinc/pms-docker
+    container_name: plex
+    hostname: plex-docker
+    networks:
+      - nginx_network 
     ports:
-      - 8080:8080
-      - 6881:6881
-      - 6881:6881/udp
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1 # May be required. (depends on multiple factors)
-      - net.ipv6.conf.all.disable_ipv6=1  # Recomended if using ipv4 only
-    restart: unless-stopped
-
-  torrent:
-    image: linuxserver/qbittorrent
-    container_name: qbittorrent
-    network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch' for torrenting without a VPN
+      - 32400:32400/tcp
+      - 8324:8324/tcp
+      - 32469:32469/tcp
+      - 1900:1900/udp
+      - 32410:32410/udp
+      - 32412:32412/udp
+      - 32413:32413/udp
+      - 32414:32414/udp
     environment:
+      TZ: ${TZ}
+      PLEX_CLAIM: ${PLEX_CLAIM}
+      ADVERTISE_IP: ${ADVERTISED_IPS}
+      ALLOWED_NETWORKS: ${LAN_SUBNET}
+    volumes:
+      - ./plex/database:/config
+      - ./plex/transcode/temp:/transcode
+      - ../../RAIDdir/servarr_data/media/:/data/media/
+      - ../../RAIDdir/cloud_data/nextcloud/nextcloud/files/Documents/Grossi Family/Videos/:/data/homevideos
+    # restart: unless-stopped
+
+  vpn:
+    image: qmcgaw/gluetun # https://github.com/qdm12/gluetun-wiki/blob/main/setup/providers/nordvpn.md
+    container_name: gluetun
+    networks: 
+      - vpn
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - 8080:8080 # QBittorrent web port
+      - 6881:6881 # QBittorrent
+      - 6881:6881/udp # QBittorrent
+      - 8085:8085 # sabnzbd
+      - 6789:6789 # nzbget
+      # - 9696:9696 # prowlarr
+      # - 7878:7878 # radarr
+      # - 8989:8989 # sonarr
+      # - 8686:8686 # lidarr
+      # - 6767:6767 # bazarr
+      # - 5055:5055 # overseerr
+    volumes:
+      - ./gluetun:/gluetun
+    environment:
+      VPN_SERVICE_PROVIDER: nordvpn
+      VPN_TYPE: wireguard
+      WIREGUARD_PRIVATE_KEY: ${Nord_PRIVATEKEY2025}
+      SERVER_COUNTRIES: United States
+      SERVER_HOSTNAMES: ${P2P_SERVERS}
+      # HTTP proxy server allows Prowlarr access to Qbittorrent from a different network (i.e. not going through the VPN)
+      HTTPPROXY: on
+      HTTPPROXY_LISTENING_ADDRESS: :8118
+      HTTPPROXY_USERL: ${HTTPPROXY_USERL}
+      HTTPPROXY_PASSWORD: ${HTTPPROXY_PASSWORD}
+      HTTPPROXY_STEALTH: on
+    # restart: unless-stopped
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent
+    container_name: qbittorrent
+    # hostname: qbittorrent-docker
+    network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch' for torrenting without a VPN
+    environment: 
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
       WEBUI_PORT: 8080 # The torrent service would be available at http://localhost:8080/ or anywhere inside of the local network http://192.168.1.xxx:8080
     volumes:
       - ./qbittorrent/config:/config
-      - ./qbittorrent/incomplete:/incomplete
-      - ./qbittorrent/torrents:/torrents
-      - ../Media:/downloads
+      # - ../../RAIDdir/qbittorrent/incomplete:/incomplete
+      # - ./qbittorrent/torrent:/torrents
+      # - ../../RAIDdir/Media:/downloads
+      - ./qbittorrent/torrent_files:/torrent_files/
+      - ../../RAIDdir/servarr_data/torrents:/data/torrents/
     depends_on:
       - vpn
-    restart: unless-stopped
+    # restart: unless-stopped
 
-  pms:
-    image: plexinc/pms-docker
-    container_name: plex
-    hostname: plex-docker
-    network_mode: host 
+  prowlarr: # Set trackers
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    hostname: prowlarr-docker
+    networks:
+      vpn:
+        ipv4_address: ${PROWLARR_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./prowlarr:/config
+    restart: unless-stopped
+    ports:
+      - 9696:9696
+    depends_on:
+      - vpn
+      - qbittorrent
+
+  radarr: # Movies
+    container_name: radarr
+    image: lscr.io/linuxserver/radarr:latest
+    hostname: radarr-docker
+    restart: unless-stopped
+    networks:
+      vpn:
+        ipv4_address: ${RADARR_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    logging:
+      driver: json-file
+    ports:
+      - 7878:7878
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./radarr:/config
+      - ../../RAIDdir/servarr_data/:/data
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
+  sonarr: # TV shows
+    container_name: sonarr
+    image: lscr.io/linuxserver/sonarr:latest
+    hostname: sonarr-docker
+    restart: unless-stopped
+    networks:
+      vpn:
+        ipv4_address: ${SONARR_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    logging:
+      driver: json-file
+    ports:
+      - 8989:8989
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./sonarr:/config
+      - ../../RAIDdir/servarr_data/:/data
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
+  lidarr: # Music
+    container_name: lidarr
+    image: lscr.io/linuxserver/lidarr:latest
+    hostname: lidarr-docker
+    restart: unless-stopped
+    networks:
+      vpn:
+        ipv4_address: ${LIDARR_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./lidarr:/config
+      - ../../RAIDdir/servarr_data/:/data
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    ports:
+      - 8686:8686
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
+  overseerr: # Discover content
+    image: lscr.io/linuxserver/overseerr:latest
+    container_name: overseerr
+    networks:
+      vpn:
+        ipv4_address: ${OVERSEERR_STATIC_IP}
+      nginx_network: # For remote access
+        ipv4_address: 172.18.0.101 # Static Docker Overseerr IP address on nginx_network
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    volumes:
+      - ./overseerr:/config
+      - /data:/data
+    ports:
+      - 5055:5055
+    restart: unless-stopped
+    depends_on:
+      - prowlarr
+      - qbittorrent
+    
+  bazarr: # Subtitles
+    container_name: bazarr
+    image: lscr.io/linuxserver/bazarr:latest
+    restart: unless-stopped
+    networks:
+      vpn:
+        ipv4_address: ${BAZARR_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    logging:
+      driver: json-file
+    ports:
+      - 6767:6767
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./bazarr:/config
+      - ../../RAIDdir/servarr_data/media:/data/media
+ 
+  sabnzbd: # Usenet
+    container_name: sabnzbd
+    image: lscr.io/linuxserver/sabnzbd:latest
+    restart: unless-stopped
+    network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    logging:
+      driver: json-file
     # ports:
-    #   - 32400:32400/tcp
-    #   - 8324:8324/tcp
-    #   - 32469:32469/tcp
-    #   - 1900:1900/udp
-    #   - 32410:32410/udp
-    #   - 32412:32412/udp
-    #   - 32413:32413/udp
-    #   - 32414:32414/udp
+      # - 8080:8080
+      # - 8085:8085 # Defined in vpn service
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./sabnzbd:/config
+      - ../../RAIDdir/servarr_data/usenet:/data/usenet/
+    depends_on:
+      - vpn
+
+  # nzbget: # Redundant with Sabnzbd
+  #   image: lscr.io/linuxserver/nzbget:latest
+  #   container_name: nzbget
+  #   network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+  #   environment:
+  #     PUID: ${LOCAL_USER}
+  #     PGID: ${LOCAL_USER}
+  #     TZ: ${TZ}
+  #     NZBGET_USER: ${NZBGET_USER} #optional
+  #     NZBGET_PASS: ${NZBGET_PASS} #optional
+  #   volumes:
+  #     - ./nzbget:/config
+  #     - ../../RAIDdir/servarr_data/usenet:/data/usernet/
+  #   # ports:
+  #   #   - 6789:6789 # Defined in vpn service
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - vpn
+
+  # nzbhydra2: # Redundant with Prowlarr
+  #   image: lscr.io/linuxserver/nzbhydra2:latest
+  #   container_name: nzbhydra2
+  #   networks:
+  #     vpn:
+  #       ipv4_address: ${NZBHYDRA2_STATIC_IP}
+  #   environment:
+  #     PUID: ${LOCAL_USER}
+  #     PGID: ${LOCAL_USER}
+  #     TZ: ${TZ}
+  #   volumes:
+  #     - ./nzbhydra2:/config
+  #     # - /path/to/downloads:/downloads #optional
+  #   ports:
+  #     - 5076:5076
+  #   restart: unless-stopped
+
+  recyclarr: # Sync Sonarr and Radarr to TRaSH Guide profiles
+    image: ghcr.io/recyclarr/recyclarr
+    container_name: recyclarr
+    user: ${LOCAL_USER}:${LOCAL_USER}
+    networks:
+      - vpn 
+    volumes:
+      - ./recyclarr:/config
     environment:
       TZ: ${TZ}
-      PLEX_CLAIM: ${PLEX_TOKEN}
-      # ADVERTISE_IP: http://${SERVER_IP}:32400/
-    volumes:
-      - ./plex/database:/config
-      - ./plex/transcode/temp:/transcode
-      - ../Media:/data
-    restart: unless-stopped
+    depends_on:
+      - sonarr
+      - radarr
