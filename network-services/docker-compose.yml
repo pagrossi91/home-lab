@@ -4,8 +4,8 @@ networks:
     driver: bridge 
     ipam:
       config:
-        - subnet: 172.18.0.0/16
-          gateway: 172.18.0.1
+        - subnet: ${NGINX_NETWORK_SUBNET}
+          gateway: ${NGINX_NETWORK_GATEWAY}
 
 services: 
   duckdns:
@@ -22,7 +22,7 @@ services:
       LOG_FILE: "false" #optional
     volumes:
       - ./duckdns/config:/config #optional
-    # restart: unless-stopped
+    restart: unless-stopped
 
   # wireguard:
   #   image: linuxserver/wireguard
@@ -77,7 +77,7 @@ services:
     hostname: pihole-docker
     networks:
       nginx_network:
-        ipv4_address: 172.18.0.10 # internal Docker address of pihole
+        ipv4_address: ${PIHOLE_STATIC_IP} # internal Docker address of pihole
         # ipv6_address: fdd6:24e8:ea4e::2
     # dns:
     #   - 127.0.0.1
@@ -87,11 +87,11 @@ services:
       - "53:53/udp"
       # - "67:67/udp" # Necessary when DHCP on its own but not necessary when used in conjunction with dhcp-helper. dhcp-helper is set to listen on UDP port 67 for DHCP requests instead which are then forwarded to Pi-Hole
       - "81:80/tcp"
-      # Default HTTPs Port. FTL will generate a self-signed certificate
+      # Default HTTPS Port. FTL will generate a self-signed certificate
       - "444:443/tcp"
     environment:
       FTLCONF_webserver_api_password: ${PIHOLE_WEBPASSWORD}
-      FTLCONF_dns_upstreams:  172.18.0.12#5053  # 1.1.1.1;1.0.0.1 #;2606:4700:4700::1111;2606:4700:4700::1001 # Cloudfare DNS; IPv4 and IPv6
+      FTLCONF_dns_upstreams:  ${DNSCRYPTPROXY_STATIC_IP}#5053  # 1.1.1.1;1.0.0.1 #;2606:4700:4700::1111;2606:4700:4700::1001 # Cloudfare DNS; IPv4 and IPv6
       # FTLCONF_dhcp_active: "true" # if used, must add DHCP_START, DHCP_END, and DCHP_ROUTER environment variables
       # FTLCONF_dhcp_start: ${DHCP_START}
       # FTLCONF_dhcp_end: ${DHCP_END}
@@ -108,15 +108,14 @@ services:
       - NET_ADMIN # Required if you are using Pi-hole as your DHCP server, else not needed
       - SYS_TIME 
       - SYS_NICE
-    # restart: unless-stopped
-    # depends_on:
+    restart: unless-stopped
+    depends_on:
       # - wireguard # force pi-hole to start after wireguard
       # - dhcphelper # force pi-hole to start after dhcphelper
+      - dnscrypt-proxy
     labels:
       - "com.centurylinklabs.watchtower.enable=false" # excludes container from watchtower update
-    # depends_on:
-    #   - dnscrypt-proxy
-      
+
   # Runs a DHCP relay container that listens for DHCP discovery requests on the LAN and forwards them to Pihole on Docker’s internal network. Required with user defined network
   # dhcphelper: 
   #   container_name: dhcp-helper
@@ -144,8 +143,8 @@ services:
     restart: always
     networks:
       nginx_network:
-        ipv4_address: 172.18.0.11
-    # command: "init -N lpgrossi18.duckdns.org -E '172.18.0.11:5443' -A"
+        ipv4_address: ${DNSCRYPTSERVER_STATIC_IP}
+    # command: "init -N ${DOMAIN} -E '${DNSCRYPTSERVER_STATIC_IP}:5443' -A"
     command: "start"
     ports:
         - '5443:5443/udp'
@@ -157,10 +156,8 @@ services:
       TZ: ${TZ}
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
-    depends_on:
-      - pihole
 
-  dnscrypt-proxy: # not configured properly
+  dnscrypt-proxy:
     container_name: dnscrypt-proxy
     image: klutchell/dnscrypt-proxy:latest
     user: "${LOCAL_USER}:${LOCAL_USER}"
@@ -169,15 +166,15 @@ services:
       - "5053:5053/udp"
     networks:
       nginx_network:
-        ipv4_address: 172.18.0.12
-    # dns:
-    #   - 1.1.1.1
+        ipv4_address: ${DNSCRYPTPROXY_STATIC_IP}
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
     volumes:
       - ./dnscrypt/proxy/config:/config
     restart: unless-stopped
+    depends_on:
+      - duckdns
 
   watchtower:
     container_name: watchtower
@@ -202,7 +199,7 @@ services:
       - '../../.docker/config.json:/config.json' # run `touch ../../.docker/config.json` first unless you like errors
     command: --schedule '0 0 3 * * *' # updates daily at 0300
     #command: --interval 30 # updates every 30 seconds (for troubleshooting)
-    # restart: unless-stopped
+    restart: unless-stopped
 
   portainer:
     image: portainer/portainer-ce:latest
@@ -217,14 +214,14 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./portainer/data:/data
-    # restart: always
+    restart: always
 
   swag:
     image: lscr.io/linuxserver/swag:latest
     container_name: swag
     networks:
       nginx_network:
-        ipv4_address: 172.18.0.99
+        ipv4_address: ${SWAG_STATIC_IP}
     cap_add:
       - NET_ADMIN
     environment:
@@ -244,4 +241,4 @@ services:
     ports:
       - 443:443
       - 80:80 #optional
-    # restart: unless-stopped
+    restart: unless-stopped
