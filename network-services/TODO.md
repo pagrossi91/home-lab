@@ -6,7 +6,7 @@ This file tracks pending improvements, security hardening, and configuration tas
 
 ### High Priority
 
-#### Remove External Pi-hole Admin Access
+#### 1. Remove External Pi-hole Admin Access
 **Risk Level**: HIGH - Pi-hole admin currently exposed to internet via SWAG
 
 **Current State**: 
@@ -45,7 +45,7 @@ ssh -L 8181:localhost:81 user@your-server-ip
 # Configure WireGuard/OpenVPN, then use: http://server-local-ip:81/admin
 ```
 
-#### Implement Local Access Restrictions
+#### 2. Implement Local Access Restrictions
 **Purpose**: Restrict Pi-hole admin to local network only
 
 **Security Impact**:
@@ -79,7 +79,7 @@ nmap -p 81 your-external-ip
 
 ### Medium Priority
 
-#### Add Security Headers to SWAG Proxy Configs
+#### 1. Add Security Headers to SWAG Proxy Configs
 **Purpose**: Implement browser-side security protections
 
 **Security Impact**:
@@ -125,7 +125,7 @@ server {
 }
 ```
 
-#### Implement Rate Limiting
+#### 2. Implement Rate Limiting
 **Purpose**: Prevent brute force and DoS attacks
 
 **Security Impact**:
@@ -174,10 +174,101 @@ location /login {
 }
 ```
 
+## 🛠️ Configuration Improvements
+
+### High Priority
+
+#### 1. Environment Variable Consolidation
+**Current**: Some IPs hardcoded in configurations
+**Goal**: All IPs use environment variables consistently
+
+**Files to update**:
+- `./pi-hole/etc-pihole/pihole.toml` - Use `${DNSCRYPTPROXY_STATIC_IP}`
+- Various documentation examples - Use variable substitution
+- Ensure all docker-compose references use environment variables
+
+#### 2. Container Health Checks
+**Purpose**: Better monitoring and auto-restart capabilities
+
+Add to docker-compose.yml:
+```yaml
+services:
+  pihole:
+    healthcheck:
+      test: ["CMD", "dig", "@127.0.0.1", "google.com"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  dnscrypt-proxy:
+    healthcheck:
+      test: ["CMD", "dig", "@127.0.0.1", "-p", "5053", "google.com"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  swag:
+    healthcheck:
+      test: ["CMD", "curl", "-f", "https://localhost:443"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+### Medium Priority
+
+#### 1. Network Segmentation
+For enhanced security, consider separate networks:
+- Management network (Portainer, admin interfaces)
+- DNS network (Pi-hole, DNSCrypt)
+- External network (SWAG, DuckDNS)
+
+#### 2. High Availability Setup
+
+##### Multiple DNSCrypt Servers
+For enhanced reliability, consider multiple DNSCrypt proxy instances:
+
+```yaml
+dnscrypt-proxy-backup:
+  container_name: dnscrypt-proxy-backup
+  image: klutchell/dnscrypt-proxy:latest
+  networks:
+    nginx_network:
+      ipv4_address: 172.XX.0.13
+  # ... same config as primary
+```
+
+Then configure Pi-hole with multiple upstreams:
+```yaml
+FTLCONF_dns_upstreams: 172.XX.0.12#5053;172.XX.0.13#5053
+```
+
+##### Geographic Load Balancing
+For multiple location deployments, consider:
+- Regional DNSCrypt server selection
+- Latency-based server prioritization
+- Automatic failover mechanisms
+
+#### 3. Performance Scaling
+
+##### Pi-hole Performance Tuning
+```yaml
+# In docker-compose.yml environment section
+FTLCONF_dns_cache_size: 10000  # Increase from default
+FTLCONF_dns_cache_insert_strategy: LRU  # Optimize cache strategy
+```
+
+##### Resource Monitoring Integration
+Consider integrating with monitoring systems:
+- Prometheus + Grafana for metrics
+- ELK stack for log analysis
+- Alerting for service failures
+
 ### Low Priority
 
-#### Enhance Backup Security
-**Current**: Basic file backups
+#### 1. Enhanced Backup Security
+**Current**: Basic, manual file backups
 **Goal**: Encrypted, automated backups
 
 ```bash
@@ -205,7 +296,7 @@ EOF
 chmod +x backup-homelab.sh
 ```
 
-#### Monitor Failed Access Attempts
+#### 2. Monitor Failed Access Attempts
 **Purpose**: Detect potential attacks
 
 ```bash
@@ -221,54 +312,12 @@ done
 EOF
 ```
 
-#### Implement Automated Certificate Monitoring
+#### 3. Implement Automated Certificate Monitoring
 **Purpose**: Alert before certificate expiration
 
 ```bash
 # Add to crontab for weekly certificate checks
 0 2 * * 1 openssl x509 -in ./swag/config/etc/letsencrypt/live/${DUCKDNS}.duckdns.org/cert.pem -text -noout | grep "Not After" | mail -s "SSL Certificate Status" admin@domain.com
-```
-
-## 🛠️ Configuration Improvements
-
-### Environment Variable Consolidation
-**Current**: Some IPs hardcoded in configurations
-**Goal**: All IPs use environment variables
-
-**Files to update**:
-- `./pi-hole/etc-pihole/pihole.toml` - Use `${DNSCRYPTPROXY_STATIC_IP}`
-- Various documentation examples - Use variable substitution
-
-### DNSCrypt Server Configuration
-**Status**: Currently not functional
-**Issue**: Requires additional configuration in encrypted-dns.toml
-
-**Investigation needed**:
-- Check if DNSCrypt server keys are properly generated
-- Verify unbound configuration
-- Test if server responds to queries
-- Document working configuration
-
-### Container Health Checks
-**Purpose**: Better monitoring and auto-restart capabilities
-
-Add to docker-compose.yml:
-```yaml
-services:
-  pihole:
-    healthcheck:
-      test: ["CMD", "dig", "@127.0.0.1", "google.com"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-  dnscrypt-proxy:
-    healthcheck:
-      test: ["CMD", "dig", "@127.0.0.1", "-p", "5053", "google.com"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 ```
 
 ## 📊 Monitoring and Alerting
@@ -342,17 +391,18 @@ chmod +x security-tests.sh
 - **Annually**: Rotate Pi-hole admin password, review security configurations
 
 ### Documentation Updates
-- [ ] Update README with actual security implementation steps
 - [ ] Add troubleshooting section for common security issues
 - [ ] Document remote access alternatives
 - [ ] Create security assessment checklist
+- [ ] Add monitoring setup guides
 
 ---
 
 ## Priority Order
-1. **CRITICAL**: Remove external Pi-hole access
-2. **HIGH**: Fix DNSCrypt permissions, implement local access restrictions
-3. **MEDIUM**: Add security headers, implement rate limiting
-4. **LOW**: Enhanced monitoring, automated backups
+1. **HIGH**: Environment variable consolidation, container health checks
+2. **MEDIUM**: Advanced security features, high availability setup
+3. **LOW**: Enhanced monitoring, automated backups
 
-**Estimated Time**: 2-3 hours for critical and high priority items
+**Estimated Time**: 3-4 hours for high priority items# Homelab Network Stack - TODO
+
+This file tracks pending improvements, security hardening, and configuration tasks for the network services stack.

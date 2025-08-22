@@ -21,7 +21,7 @@ Internet → Router → Pi-hole → DNSCrypt Proxy → Encrypted DNS Providers
 - **Encrypted DNS Chain**: All DNS queries are encrypted before leaving the network
 - **Secure External Access**: Only HTTPS traffic allowed through SWAG reverse proxy
 
-## 🚀 Complete Deployment Instructions
+## 🚀 Initial Setup
 
 ### Prerequisites
 1. Docker and Docker Compose installed
@@ -30,9 +30,9 @@ Internet → Router → Pi-hole → DNSCrypt Proxy → Encrypted DNS Providers
    - Port 443 → Docker host IP:443 (HTTPS traffic)
 3. DuckDNS account and subdomain created
 
-### Step 1: Initial Setup
+### Directory Structure Setup
 
-1. **Clone or create project directory**:
+1. **Create project directory**:
    ```bash
    mkdir homelab-network-stack
    cd homelab-network-stack
@@ -42,6 +42,7 @@ Internet → Router → Pi-hole → DNSCrypt Proxy → Encrypted DNS Providers
    ```bash
    mkdir -p {pi-hole/{etc-pihole,etc-dnsmasq.d,var-log},dnscrypt/{proxy/config,server/{keys,unbound}},swag/config,portainer/data,duckdns/config}
    ```
+   **Why**: These directories are all the mounted volumes listed for the services in the `docker-compose.yml` file. Failure to initialize these volumes manually will result in permission errors.
 
 3. **Create log file**:
    ```bash
@@ -59,9 +60,9 @@ Internet → Router → Pi-hole → DNSCrypt Proxy → Encrypted DNS Providers
    - Configuration changes not persisting between container restarts
    - Log files not being written, making troubleshooting impossible
 
-### Step 2: Environment Configuration
+### Environment Configuration
 
-Create `.env` file with your specific values:
+Create `.env` file with your specific values. These keep sensitive variables like passwords out of your `docker-compose.yml` file and in a separate file that the `docker-compose.yml` file can reference as `${VARIABLE_NAME}`.
 
 ```bash
 # User and timezone settings
@@ -70,6 +71,14 @@ TZ=America/New_York
 
 # Pi-hole admin interface password
 PIHOLE_WEBPASSWORD=your_secure_password_here
+
+# Static IP Addresses on NGINX Docker Network
+NGINX_NETWORK_SUBNET=172.XX.0.0/16
+NGINX_NETWORK_GATEWAY=172.XX.0.1
+PIHOLE_STATIC_IP=172.XX.0.10
+DNSCRYPTSERVER_STATIC_IP=172.XX.0.11
+DNSCRYPTPROXY_STATIC_IP=172.XX.0.12
+SWAG_STATIC_IP=172.XX.0.99
 
 # DuckDNS configuration
 DUCKDNS=your_subdomain_here
@@ -94,64 +103,174 @@ WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD=your_app_password
 - `DOMAIN=${DUCKDNS}.duckdns.org`: Full domain for SSL certificates. **Why**: This must exactly match your DuckDNS domain, or certificate requests will be rejected by the certificate authority.
 - `SSL_EMAIL`: Required for ZeroSSL certificate provisioning. **Why**: Without this, certificate generation will fail with "Email address required" errors, and you'll fall back to Let's Encrypt with stricter rate limits.
 
-### Step 3: DNSCrypt Server Initialization
+## 📋 Service Configuration and Deployment
 
-**For First-Time Setup:**
+Deploy services in this specific order to ensure proper dependencies:
 
-1. **Modify docker compose.yml to use init command**:
-   ```yaml
-   dnscrypt-server:
-     image: jedisct1/dnscrypt-server:latest
-     container_name: dnscrypt-server
-     restart: always
-     networks:
-       nginx_network:
-         ipv4_address: 172.18.0.11
-     command: "init -N ${DUCKDNS}.duckdns.org -E '172.18.0.11:5443' -A"
-     # command: "start"  # Use this for subsequent runs
-     ports:
-         - '5443:5443/udp'
-         - '5443:5443/tcp'
-     volumes:
-       - ./dnscrypt/server/keys:/opt/encrypted-dns/etc/keys
-       - ./dnscrypt/server/unbound:/opt/unbound/etc/unbound
-     environment:
-       TZ: ${TZ}
-       PUID: ${LOCAL_USER}
-       PGID: ${LOCAL_USER}
-     depends_on:
-       - pihole
-   ```
+### 1. DuckDNS Dynamic DNS
 
-2. **Run initialization**:
+**Function**: Keeps external domain pointed to current public IP address
+
+**Prerequisites**: 
+- Manually create the volume directories in the docker-compose file. This should already have been completed in the Initial Setup section. 
+- Create a DuckDNS account from [DuckDNS.org](https://www.duckdns.org) and retrieve the token.
+
+#### Docker Compose Configuration
+```yaml
+duckdns:
+  image: lscr.io/linuxserver/duckdns:latest
+  container_name: duckdns
+  networks:
+    - nginx_network
+  environment:
+    PUID: ${LOCAL_USER}
+    PGID: ${LOCAL_USER}
+    TZ: ${TZ}
+    SUBDOMAINS: ${DUCKDNS}
+    TOKEN: ${DUCKDNS_TOKEN}
+    LOG_FILE: "false"
+  volumes:
+    - ./duckdns/config:/config
+```
+
+**Key Parameters**:
+- `SUBDOMAINS`: Your DuckDNS subdomain (without .duckdns.org)
+- `TOKEN`: Authentication token from DuckDNS account
+- `LOG_FILE: "false"`: Disables logging to reduce container size
+
+#### Deployment
+```bash
+docker compose up -d duckdns
+```
+Wait 2-3 minutes for IP update.
+
+**Why this order**: SWAG needs your domain to point to the correct IP address for SSL certificate validation. If DuckDNS hasn't updated your IP, certificate generation will fail with "DNS challenge failed" errors.
+
+**Update Frequency**: Every 5 minutes (DuckDNS default)
+
+**Why dynamic DNS is essential**:
+- **Residential ISPs**: Most change IP addresses regularly (daily to weekly)
+- **Certificate validation**: SSL certificates require domain to resolve to correct IP
+- **External access**: Services become unreachable when IP changes
+- **Without DuckDNS**: Manual IP updates required every time ISP changes your address
+
+**Common issues and symptoms**:
+- **Wrong token**: Updates fail silently, domain points to old IP
+- **Network issues**: Domain stops updating, external access fails
+- **Rate limiting**: Too frequent updates can trigger temporary blocks
+
+#### Post-Deployment Configuration
+No additional configuration required - service automatically updates IP every 5 minutes.
+
+#### Troubleshooting
+**Issue**: Domain not updating to current IP
+```bash
+# Test DuckDNS token manually
+curl "https://www.duckdns.org/update?domains=${DUCKDNS}&token=${DUCKDNS_TOKEN}&ip="
+
+# Check container logs
+docker logs duckdns
+
+# Verify current domain resolution
+nslookup ${DUCKDNS}.duckdns.org
+```
+
+**Reference**: [DuckDNS Docker Documentation](https://docs.linuxserver.io/images/docker-duckdns/)
+
+---
+
+### 2. DNSCrypt Server (Optional)
+
+**Function**: Self-hosted DNSCrypt server for homelab domain
+
+> **Note**: Skip this service if you only plan to use [DNSCrypt servers from external organizations](https://dnscrypt.info/public-servers/). This provides a self-hosted, caching, non-censoring, non-logging, DNSSEC-capable, DNSCrypt-enabled DNS resolver.
+
+**Prerequisites**: 
+- Manually create the volume directories in the docker-compose file. This should already have been completed in the Initial Setup section. 
+
+#### Docker Compose Configuration
+```yaml
+dnscrypt-server:
+  image: jedisct1/dnscrypt-server:latest
+  container_name: dnscrypt-server
+  restart: always
+  networks:
+    nginx_network:
+      ipv4_address: ${DNSCRYPTSERVER_STATIC_IP}
+  command: "init -N ${DUCKDNS}.duckdns.org -E '${DNSCRYPTSERVER_STATIC_IP}:5443' -A"
+  # command: "start"  # Use this for subsequent runs
+  ports:
+    - '5443:5443/udp'
+    - '5443:5443/tcp'
+  volumes:
+    - ./dnscrypt/server/keys:/opt/encrypted-dns/etc/keys
+    - ./dnscrypt/server/unbound:/opt/unbound/etc/unbound
+  environment:
+    TZ: ${TZ}
+    PUID: ${LOCAL_USER}
+    PGID: ${LOCAL_USER}
+  depends_on:
+    - pihole
+```
+
+**Key Parameters**:
+- `command: "init"`: Generates cryptographic keys and configuration (first run only)
+- `command: "start"`: Normal operation mode (subsequent runs)
+- Static IP binding on port 5443 for DNSCrypt protocol
+
+#### Deployment
+1. **First-time initialization**:
    ```bash
    docker compose up dnscrypt-server
    ```
-   
-   **Why**: The `init` command generates the server's cryptographic keys and creates the encrypted-dns.toml configuration file. These are essential for the DNSCrypt server to function. Without initialization, the server will fail to start with errors like "No provider key found" or "Configuration file missing."
+   Watch logs until you see "Provider information saved" then stop the container.
 
-3. **Verify key generation**:
+    **Why**: The `init` command generates the server's cryptographic keys and creates the encrypted-dns.toml configuration file. These are essential for the DNSCrypt server to function. Without initialization, the server will fail to start with errors like "No provider key found" or "Configuration file missing."
+
+2. **Switch to start mode**:
+   Edit docker-compose.yml to use `command: "start"` and comment out the `command: "init..."`, then:
    ```bash
-   ls -la ./dnscrypt/server/keys/
+   docker compose up -d dnscrypt-server
    ```
-   You should see: `encrypted-dns.toml`, `provider_name`, and various `.key` files.
-   
-   **What to expect**: If initialization fails, you'll see an empty keys directory and the container will exit immediately. The container logs will show "Failed to generate keys" or similar errors.
 
-4. **Switch to start command for subsequent runs**:
-   After successful initialization, change the docker compose.yml:
-   ```yaml
-   # command: "init -N ${DUCKDNS}.duckdns.org -E '172.18.0.11:5443' -A"
-   command: "start"
-   ```
+    **Why**: The `init` command should only be run once. If you try to run it again, it will fail with "Keys already exist" errors or overwrite your existing configuration, potentially breaking client connections. When you use the `start` command, DNSCrypt-server uses the configuration from your initial `init` run.
+
+#### Post-Deployment Configuration
+Verify key generation:
+```bash
+ls -la ./dnscrypt/server/keys/
+```
    
-   **Why**: The `init` command should only be run once. If you try to run it again, it will fail with "Keys already exist" errors or overwrite your existing configuration, potentially breaking client connections.
+   **What to expect**: You should see: `encrypted-dns.toml`, `provider_name`, and various `.key` files. If initialization fails, you'll see an empty keys directory and the container will exit immediately. The container logs will show "Failed to generate keys" or similar errors.
+
+#### Troubleshooting
+**Issue**: Initialization fails
+```bash
+# Check logs for errors
+docker logs dnscrypt-server
+
+# Verify permissions
+sudo chown -R 1000:1000 ./dnscrypt/server/
+
+# Clear and reinitialize
+rm -rf ./dnscrypt/server/keys/*
+# Switch back to init command and restart
+```
 
 **Reference**: [DNSCrypt Server Docker Documentation](https://github.com/dnscrypt/dnscrypt-server-docker)
 
-### Step 4: DNSCrypt Proxy Configuration
+---
 
-Create `./dnscrypt/proxy/config/dnscrypt-proxy.toml`:
+### 3. DNSCrypt Proxy
+
+**Function**: Encrypts and authenticates all DNS queries before sending to upstream servers
+
+**Prerequisites**: 
+- Manually create the volume directories in the docker-compose file. This should already have been completed in the Initial Setup section. 
+- Create configuration file before deployment
+
+#### Configuration File Setup
+Create `./dnscrypt/proxy/config/dnscrypt-proxy.toml` or modify the example [DNSCrypt proxy toml file](https://github.com/DNSCrypt/dnscrypt-proxy/blob/master/dnscrypt-proxy/example-dnscrypt-proxy.toml):
 
 ```toml
 # Logging and performance settings
@@ -195,6 +314,40 @@ routes = [
 ]
 ```
 
+---
+#### Key Configuration Explained
+
+```toml
+require_nolog = true
+require_nofilter = true
+```
+**Why essential for privacy**: 
+- **require_nolog**: Eliminates servers that log DNS queries, preventing tracking
+- **require_nofilter**: Prevents DNS-level filtering (Pi-hole handles filtering locally)
+- **Without these**: Your DNS queries could be logged, sold, or used for tracking
+
+```toml
+cache_size = 4096
+cache_min_ttl = 2400
+cache_max_ttl = 86400
+```
+**Why caching matters**: 
+- Reduces upstream queries by 60-80% in typical usage
+- Improves response times from ~100ms to ~1ms for cached queries
+- Reduces bandwidth and improves privacy (fewer external requests)
+- **Without caching**: Every DNS query goes upstream, increasing latency and exposure
+
+```toml
+timeout = 5000
+keepalive = 30
+```
+**Why timeout/keepalive tuning**:
+- **5000ms timeout**: Accommodates slower relay chains without failing
+- **30s keepalive**: Maintains connections to reduce connection overhead
+- **Too low**: Queries fail with timeout errors
+- **Too high**: Resource waste and slower failover
+
+---
 #### Server Selection Strategy
 
 **DNSCrypt Servers Selected**:
@@ -214,6 +367,7 @@ routes = [
 - **Protocol diversity**: Mix of DNSCrypt and DoH provides redundancy if one protocol has issues
 - **Privacy focus**: Selected providers have strong privacy policies and no-logging commitments
 
+---
 #### Anonymous DNS Relay Configuration
 
 **Why relays are important**: The relay routes add an extra layer of privacy by routing DNS queries through intermediate relays before reaching the final DNS server. This prevents the DNS server from knowing your real IP address, similar to how Tor works.
@@ -225,117 +379,110 @@ routes = [
 
 **What happens without relays**: Your real IP address is visible to the DNS servers, potentially allowing correlation of DNS queries with your identity.
 
-**Reference**: [DNSCrypt Proxy Configuration Guide](https://github.com/DNSCrypt/dnscrypt-proxy/wiki/Configuration)
+**Performance Impact**:
+- **Additional latency**: 20-50ms per query (usually acceptable)
+- **Redundancy**: If relay fails, direct connection is attempted
+- **Load balancing**: Distributes traffic across multiple relays
 
-### Step 5: Service Deployment
+**What happens without relays**: DNS servers can potentially:
+- Log your IP address with query history
+- Build profiles of your browsing habits
+- Correlate queries with other data sources
+- Comply with government data requests including your query history
 
-1. **Start DuckDNS first** (to ensure domain IP is current):
-   ```bash
-   docker compose up -d duckdns
-   ```
-   Wait 2-3 minutes for IP update.
-   
-   **Why this order**: SWAG needs your domain to point to the correct IP address for SSL certificate validation. If DuckDNS hasn't updated your IP, certificate generation will fail with "DNS challenge failed" errors. You'll see SWAG logs showing "Unable to reach domain" or "DNS propagation failed."
+#### Docker Compose Configuration
+```yaml
+dnscrypt-proxy:
+  container_name: dnscrypt-proxy
+  image: klutchell/dnscrypt-proxy:latest
+  user: "${LOCAL_USER}:${LOCAL_USER}"
+  ports:
+    - "5053:5053/tcp"
+    - "5053:5053/udp"
+  networks:
+    nginx_network:
+      ipv4_address: ${DNSCRYPTPROXY_STATIC_IP}
+  environment:
+    PUID: ${LOCAL_USER}
+    PGID: ${LOCAL_USER}
+  volumes:
+    - ./dnscrypt/proxy/config:/config
+  restart: unless-stopped
+```
 
-2. **Initialize DNSCrypt server** (first time only):
-   ```bash
-   docker compose up dnscrypt-server
-   ```
-   Watch logs until you see "Provider information saved" then stop the container.
-   
-   **Why**: The initialization must complete before switching to start mode. If you skip this step, the server will fail to start with "Missing configuration" errors.
+#### Deployment
+```bash
+docker compose up -d dnscrypt-proxy
+```
 
-3. **Switch DNSCrypt to start mode and deploy DNS services**:
-   Edit docker compose.yml to use `command: "start"`, then:
-   ```bash
-   docker compose up -d dnscrypt-proxy dnscrypt-server pihole
-   ```
-   
-   **Why this order**: Pi-hole depends on DNSCrypt proxy for upstream DNS. If Pi-hole starts first, it will fail DNS resolution and may not start properly, showing "Failed to resolve upstream servers" in logs.
+#### Post-Deployment Configuration
+Verify servers are responding:
+```bash
+# Check server connectivity and latency
+docker logs dnscrypt-proxy 2>&1 | grep -E "(latency|ready|server)" | tail -10
+```
 
-4. **Verify DNS chain**:
-   ```bash
-   # Test Pi-hole (should return results)
-   dig @172.18.0.10 google.com
-   
-   # Test DNSCrypt proxy (should return results)
-   dig @172.18.0.12 -p 5053 google.com
-   ```
-   
-   **What to look for**: Both commands should return IP addresses. If they fail:
-   - Pi-hole test failing: Check if Pi-hole can reach DNSCrypt proxy
-   - DNSCrypt test failing: Check if servers in toml file are reachable
-   - Both failing: Network configuration or firewall issues
+Expected output showing live servers and latency measurements.
 
-5. **Start remaining services**:
-   ```bash
-   docker compose up -d swag portainer watchtower
-   ```
+---
+#### Troubleshooting
+**Issue**: No servers available
+```bash
+# Check configuration syntax
+docker exec dnscrypt-proxy cat /config/dnscrypt-proxy.toml
 
-### Step 6: Post-Deployment Configuration
+# Test direct connection
+dig @${DNSCRYPTPROXY_STATIC_IP} -p 5053 google.com
 
-#### Pi-hole Setup
-1. **Access Pi-hole admin**: `http://your-server-ip:81/admin`
-2. **Login** with `PIHOLE_WEBPASSWORD` from .env file
-3. **Configure upstream DNS** (should already be set to `172.18.0.12#5053`):
-   - Settings → DNS → Upstream DNS Servers
-   - Verify only custom server `172.18.0.12#5053` is checked
-   
-   **Why this verification is critical**: If other upstream servers are enabled, Pi-hole will bypass your encrypted DNS setup and send queries directly to public DNS servers in plain text, defeating the privacy benefits of DNSCrypt.
+# Check logs for server failures
+docker logs dnscrypt-proxy | grep -i error
+```
 
-4. **Configure listening interface**:
-   - Settings → DNS → Interface listening behavior
-   - Select "Listen on all interfaces"
-   
-   **Why**: With the default "Listen only on interface eth0" setting, Pi-hole won't respond to DNS queries from the Docker network, causing all DNS resolution to fail with "Connection refused" errors.
+**Reference**: [DNSCrypt Proxy Documentation](https://github.com/DNSCrypt/dnscrypt-proxy/wiki)
 
-**Reference**: [Pi-hole Docker Documentation](https://github.com/pi-hole/docker-pi-hole#readme)
+---
 
-#### SWAG SSL Certificate Setup
-1. **Check certificate generation**:
-   ```bash
-   docker logs swag
-   ```
-   Look for "Server ready" message.
-   
-   **What errors to watch for**:
-   - "DNS challenge failed": DuckDNS token incorrect or domain not updated
-   - "Rate limit exceeded": Too many certificate requests; wait 1 hour or switch to staging
-   - "Email required": SSL_EMAIL environment variable missing
+### 4. Pi-hole DNS Filter
 
-2. **Verify certificate files**:
-   ```bash
-   ls -la ./swag/config/etc/letsencrypt/live/${DUCKDNS}.duckdns.org/
-   ```
-   You should see: `cert.pem`, `chain.pem`, `fullchain.pem`, `privkey.pem`
-   
-   **Why this check matters**: Without these files, HTTPS connections will fail with "SSL certificate not found" errors, forcing all traffic over unencrypted HTTP.
+**Function**: Network-wide DNS filtering and ad blocking
 
-**Reference**: [SWAG Documentation](https://docs.linuxserver.io/general/swag)
+**Prerequisites**: 
+- DNSCrypt Proxy must be running first
+- Manually create the volume directories in the docker-compose file. This should already have been completed in the Initial Setup section.
+- Manually create the `pihole.log` file from the docker-compose file. This should already have been completed in the Initial Setup section. 
 
-#### Router DNS Configuration
-1. **Primary DNS**: Set to your Docker host IP
-2. **Secondary DNS**: Set to 1.1.1.1 or 8.8.8.8 (backup)
-3. **DHCP settings**: Ensure router continues handling DHCP
-
-**Why router configuration is essential**: Without pointing your router to Pi-hole:
-- Network-wide ad blocking won't function
-- Clients will use ISP DNS servers (usually plain text)
-- You'll lose centralized DNS filtering and logging
-- The entire DNS privacy chain is bypassed
-
-**What happens if misconfigured**: Devices will use default DNS servers, experiencing slower resolution, no ad blocking, and potential DNS manipulation by ISPs or man-in-the-middle attacks.
-
-## 🔧 Service-Specific Configurations
-
-### 🛡️ Pi-hole Configuration Details
-
-**Container Network**: `172.18.0.10`
-**Purpose**: Network-wide DNS filtering and ad blocking
-
-**Key Configuration Files**:
-- `./pi-hole/etc-pihole/pihole.toml`: Main Pi-hole configuration
-- `./pi-hole/etc-dnsmasq.d/`: DNS server configuration files
+#### Docker Compose Configuration
+```yaml
+pihole:
+  container_name: pihole
+  image: pihole/pihole:latest
+  hostname: pihole-docker
+  networks:
+    nginx_network:
+      ipv4_address: ${PIHOLE_STATIC_IP}
+  ports:
+    - "53:53/tcp"
+    - "53:53/udp"
+    - "81:80/tcp"
+    - "444:443/tcp"
+  environment:
+    FTLCONF_webserver_api_password: ${PIHOLE_WEBPASSWORD}
+    FTLCONF_dns_upstreams: ${DNSCRYPTPROXY_STATIC_IP}#5053
+    FTLCONF_dns_listeningMode: all
+    TZ: ${TZ}
+  volumes:
+    - './pi-hole/etc-pihole/:/etc/pihole/'
+    - './pi-hole/etc-dnsmasq.d/:/etc/dnsmasq.d/'
+    - './pi-hole/var-log/pihole.log:/var/log/pihole.log'
+  cap_add:
+    - NET_ADMIN
+    - SYS_TIME 
+    - SYS_NICE
+  labels:
+    - "com.centurylinklabs.watchtower.enable=false"
+  depends_on:
+    - dnscrypt-proxy
+```
 
 **Critical Docker Compose Settings Explained**:
 
@@ -371,98 +518,111 @@ cap_add:
 - Network configuration changes inside container will fail
 - Some Pi-hole features may not work correctly
 
-**Post-Deployment Tasks**:
-1. Import blocklists (automatic on first start)
-2. Configure whitelist/blacklist as needed
-3. Monitor query log for false positives
-
-### 🔐 DNSCrypt Services Configuration
-
-#### DNSCrypt Proxy (`172.18.0.12:5053`)
-**Purpose**: Encrypts DNS queries before sending to upstream providers
-
-**Configuration Location**: `./dnscrypt/proxy/config/dnscrypt-proxy.toml`
-
-**Key Settings Explained**:
-
-```toml
-require_nolog = true
-require_nofilter = true
-```
-**Why essential for privacy**: 
-- **require_nolog**: Eliminates servers that log DNS queries, preventing tracking
-- **require_nofilter**: Prevents DNS-level filtering (Pi-hole handles filtering locally)
-- **Without these**: Your DNS queries could be logged, sold, or used for tracking
-
-```toml
-cache_size = 4096
-cache_min_ttl = 2400
-cache_max_ttl = 86400
-```
-**Why caching matters**: 
-- Reduces upstream queries by 60-80% in typical usage
-- Improves response times from ~100ms to ~1ms for cached queries
-- Reduces bandwidth and improves privacy (fewer external requests)
-- **Without caching**: Every DNS query goes upstream, increasing latency and exposure
-
-```toml
-timeout = 5000
-keepalive = 30
-```
-**Why timeout/keepalive tuning**:
-- **5000ms timeout**: Accommodates slower relay chains without failing
-- **30s keepalive**: Maintains connections to reduce connection overhead
-- **Too low**: Queries fail with timeout errors
-- **Too high**: Resource waste and slower failover
-
-#### Anonymous DNS Relay Benefits
-
-**Privacy Enhancement**:
-```toml
-routes = [
-    { server_name='cs-nyc', via=['dnscry.pt-anon-philadelphia-ipv4'] },
-    # ... more routes
-]
+---
+#### Deployment
+```bash
+docker compose up -d pihole
 ```
 
-**What this accomplishes**:
-1. **IP Anonymization**: DNS server never sees your real IP address
-2. **Traffic Analysis Protection**: Makes correlation of queries much harder
-3. **Geographic Obfuscation**: Queries appear to come from relay locations
+#### Post-Deployment Configuration
 
-**Performance Impact**:
-- **Additional latency**: 20-50ms per query (usually acceptable)
-- **Redundancy**: If relay fails, direct connection is attempted
-- **Load balancing**: Distributes traffic across multiple relays
+1. **Access Pi-hole admin**: `http://your-server-ip:81/admin`
+2. **Login** with `PIHOLE_WEBPASSWORD` from .env file
+3. **Verify upstream DNS**:
+   - Settings → DNS → Upstream DNS Servers
+   - Confirm only custom server `${DNSCRYPTPROXY_STATIC_IP}#5053` is checked
+4. **Configure listening interface**:
+   - Settings → DNS → Interface listening behavior
+   - Select "Listen on all interfaces"
+5. **Verify DNS and blocking functionality**: Conduct the troubleshooting steps below to verify DNS resolution,  routing to DNSCrypt, and ad blocking are working. If they are, proceed to the next step. Else, search logs relevant to the troubleshooting step that failed.
+6. **Router DNS Configuration**
+    - Primary DNS: Set to your Docker host IP
+      > **Note**: This should be `192.168.XX.XXX` and not the internal docker IP address set in the `.env` file, which would look like `172.XX.0.10`.
+    - Secondary DNS: Set to 1.1.1.1 or 8.8.8.8 (backup)
+    - DHCP settings: Ensure router continues handling DHCP
+  
+    **Why router configuration is essential**: Without pointing your router to Pi-hole:
+    - Network-wide ad blocking won't function
+    - Clients will use ISP DNS servers (usually plain text)
+    - You'll lose centralized DNS filtering and logging
+    - The entire DNS privacy chain is bypassed
 
-**What happens without relays**: DNS servers can potentially:
-- Log your IP address with query history
-- Build profiles of your browsing habits
-- Correlate queries with other data sources
-- Comply with government data requests including your query history
+    **What happens if misconfigured**: Devices will use default DNS servers, experiencing slower resolution, no ad blocking, and potential DNS manipulation by ISPs or man-in-the-middle attacks.
 
-#### DNSCrypt Server (`172.18.0.11:5443`)
-**Purpose**: Provides DNSCrypt service for homelab domain
+  7. **Enhanced Blocklists** (optional):
+  The default Gravity lists (i.e. the list of domains to block) are generally sufficient. However, add the following lists from [Hagezi](https://github.com/hagezi/dns-blocklists) for more thorough filtering. These can be added from the Pi-Hole Web Portal in the Lists section:
 
-**Configuration Location**: `./dnscrypt/server/keys/encrypted-dns.toml`
+      - *Hagezi multi pro*: `https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/pro.txt`
+      - *Hagezi threat intelligence feed*: `https://raw.githubusercontent.com/hagezi/dns-blocklists/main/hosts/tif.txt`
+      - *Smart TV blocklist*: `https://blocklistproject.github.io/Lists/smart-tv.txt`
+      - *TikTok blocklist*: `https://blocklistproject.github.io/Lists/tiktok.txt`
+      - *Ads blocklist*: `https://blocklistproject.github.io/Lists/ads.txt`
+      - *Tracker blocklist*: `https://blocklistproject.github.io/Lists/tracking.txt`
 
-**Initialization Process**:
-The `init` command creates:
-- **Provider keys**: Cryptographic keys for the DNSCrypt protocol
-- **Certificate**: Time-limited certificate for key rotation
-- **Configuration**: Server binding and protocol settings
+#### Troubleshooting
 
-**Why initialization is critical**: 
-- Without keys: Server cannot establish encrypted connections
-- Without certificate: Clients cannot verify server authenticity
-- Without proper configuration: Server binds to wrong interfaces or ports
+These steps will help you identify the problem. Resolutions will likely be more specific and require some google-foo. Claude or ChatGPT can also be surprisingly helpful decifering logs for errors.
 
-**Reference**: [DNSCrypt Server Setup Guide](https://github.com/jedisct1/encrypted-dns-server)
+**Issue**: DNS resolution not working
+```bash
+# Test Pi-hole directly
+dig @${PIHOLE_STATIC_IP} google.com
 
-### 🌐 SWAG Reverse Proxy Configuration
+# Check if Pi-hole can reach DNSCrypt proxy
+dig @${PIHOLE_STATIC_IP} -p 5053 google.com
 
-**Container Network**: `172.18.0.99`
-**Purpose**: Secure external access with automatic SSL
+# Verify container networking
+docker exec pihole nslookup google.com ${DNSCRYPTPROXY_STATIC_IP}
+```
+
+**Issue**: Ad blocking not working
+```bash
+# Test known ad domain
+dig @${PIHOLE_STATIC_IP} doubleclick.net
+
+# Should return 0.0.0.0 if blocking works
+```
+
+**Reference**: [Pi-hole Docker Documentation](https://github.com/pi-hole/docker-pi-hole#readme)
+
+---
+
+### 5. SWAG Reverse Proxy
+
+**Function**: Secure external access with automatic SSL certificate management
+
+**Prerequisites**: 
+- DuckDNS must be updating correctly
+- Manually create the volume directories in the docker-compose file. This should already have been completed in the Initial Setup section.
+
+#### Docker Compose Configuration
+```yaml
+swag:
+  image: lscr.io/linuxserver/swag:latest
+  container_name: swag
+  networks:
+    nginx_network:
+      ipv4_address: ${SWAG_STATIC_IP}
+  cap_add:
+    - NET_ADMIN
+  environment:
+    PUID: ${LOCAL_USER}
+    PGID: ${LOCAL_USER}
+    TZ: ${TZ}
+    URL: ${DOMAIN}
+    VALIDATION: dns
+    SUBDOMAINS: wildcard
+    CERTPROVIDER: zerossl
+    DNSPLUGIN: duckdns
+    EMAIL: ${SSL_EMAIL}
+    ONLY_SUBDOMAINS: false
+    STAGING: false
+  volumes:
+    - ./swag/config:/config
+  ports:
+    - 443:443
+    - 80:80
+```
 
 **Critical Environment Variables**:
 
@@ -486,70 +646,118 @@ CERTPROVIDER: zerossl
 - **Automatic fallback**: Falls back to Let's Encrypt if ZeroSSL fails
 - **Same security**: Both provide Domain Validated certificates
 
-**Proxy Configuration Files**: `./swag/config/nginx/proxy-confs/`
+#### Deployment
+```bash
+docker compose up -d swag
+```
 
-Each service needing external access requires a proxy configuration file:
+#### Post-Deployment Configuration
 
-**Example**: `./swag/config/nginx/proxy-confs/pihole.subdomain.conf`
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name pihole.*;
+1. **Verify certificate generation**:
+   ```bash
+   docker logs swag
+   ```
+   Look for "Server ready" message.
 
-    include /config/nginx/ssl.conf;
+   **What errors to watch for**:
+   - "DNS challenge failed": DuckDNS token incorrect or domain not updated
+   - "Rate limit exceeded": Too many certificate requests; wait 1 hour or switch to staging
+   - "Email required": SSL_EMAIL environment variable missing
 
-    location / {
-        include /config/nginx/proxy.conf;
-        resolver 127.0.0.11 valid=30s;
-        set $upstream_app pihole;
-        set $upstream_port 80;
-        set $upstream_proto http;
-        proxy_pass $upstream_proto://$upstream_app:$upstream_port;
+2. **Check certificate files**:
+   ```bash
+   ls -la ./swag/config/etc/letsencrypt/live/${DUCKDNS}.duckdns.org/
+   ```
+   Should contain: `cert.pem`, `chain.pem`, `fullchain.pem`, `privkey.pem`
+
+   **Why this check matters**: Without these files, HTTPS connections will fail with "SSL certificate not found" errors, forcing all traffic over unencrypted HTTP.
+
+3. **Proxy Configuration Files**: `./swag/config/nginx/proxy-confs/`
+
+    Each service needing external access requires a proxy configuration file. Sample configurations are provided by default with the SWAG container. Duplicate the file of the service requiring external access and remove the `.sample` suffix.
+
+    Once configured, the service will be available at `https://<server_name>.<subdomain>.duckdns.org` (e.g. `https://pihole.<subdomain>.duckdns.org`).
+
+    **Example**: `./swag/config/nginx/proxy-confs/pihole.subdomain.conf`
+    ```nginx
+    server {
+        listen 443 ssl http2;
+        server_name pihole.*;
+
+        include /config/nginx/ssl.conf;
+
+        location / {
+            include /config/nginx/proxy.conf;
+            resolver 127.0.0.11 valid=30s;
+            set $upstream_app pihole;
+            set $upstream_port 80;
+            set $upstream_proto http;
+            proxy_pass $upstream_proto://$upstream_app:$upstream_port;
+        }
     }
-}
+    ```
+
+    **Why container name resolution**:
+    - **Flexibility**: Match the `$upstream_app` variable to the container name. Container IP addresses can change (unless you prescribe the container IP in `docker-compose.yml`); names are consistent. 
+      > This doesn't always work with the container name for some undetermined reason, so prescribed container IP addresses can be an effective fallback option. This IP would be the Docker network IP address (e.g., `172.XX.0.XX`).
+    - **Docker DNS**: Docker provides automatic name resolution within networks
+    - **Maintenance**: No need to update proxy configs when IPs change
+    - **Without this**: Hardcoded IPs break when containers restart with different addresses (unless you prescribe the container IP in `docker-compose.yml`)
+
+#### Troubleshooting
+**Issue**: Certificate generation fails
+```bash
+# Check specific error
+docker logs swag | grep -i error
+
+# Test DuckDNS token
+curl "https://www.duckdns.org/update?domains=${DUCKDNS}&token=${DUCKDNS_TOKEN}&ip="
+
+# Verify domain resolution
+nslookup ${DUCKDNS}.duckdns.org
 ```
 
-**Why container name resolution**:
-- **Flexibility**: Container IP addresses can change; names are consistent
-- **Docker DNS**: Docker provides automatic name resolution within networks
-- **Maintenance**: No need to update proxy configs when IPs change
-- **Without this**: Hardcoded IPs break when containers restart with different addresses
+**Issue**: External access not working
+```bash
+# Test internal SWAG access
+curl -k https://${SWAG_STATIC_IP}
 
-### 🦆 DuckDNS Dynamic DNS
+# Check port forwarding
+nmap -p 80,443 your-external-ip
+```
 
-**Purpose**: Keeps external domain pointed to current public IP
+**Reference**: [SWAG Documentation](https://docs.linuxserver.io/general/swag)
 
-**Configuration**:
+---
+
+### 6. Portainer Container Management
+
+**Function**: Web-based Docker management interface
+
+**Prerequisites**: 
+- Manually create the volume directories in the docker-compose file. This should already have been completed in the Initial Setup section.
+
+#### Docker Compose Configuration
 ```yaml
-SUBDOMAINS: ${DUCKDNS}
-TOKEN: ${DUCKDNS_TOKEN}
-LOG_FILE: "false"
+portainer:
+  image: portainer/portainer-ce:latest
+  container_name: portainer
+  networks:
+    - nginx_network
+  command: -H unix:///var/run/docker.sock
+  environment:
+    TZ: ${TZ}
+  ports:
+    - 9000:9000
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./portainer/data:/data
 ```
 
-**Update Frequency**: Every 5 minutes (DuckDNS default)
-
-**Why dynamic DNS is essential**:
-- **Residential ISPs**: Most change IP addresses regularly (daily to weekly)
-- **Certificate validation**: SSL certificates require domain to resolve to correct IP
-- **External access**: Services become unreachable when IP changes
-- **Without DuckDNS**: Manual IP updates required every time ISP changes your address
-
-**Common issues and symptoms**:
-- **Wrong token**: Updates fail silently, domain points to old IP
-- **Network issues**: Domain stops updating, external access fails
-- **Rate limiting**: Too frequent updates can trigger temporary blocks
-
-**Reference**: [DuckDNS Setup Guide](https://www.duckdns.org/)
-
-### 📊 Portainer Container Management
-
-**Access**: `http://your-server-ip:9000`
-**Purpose**: Web-based Docker management interface
-
-**Setup Steps**:
-1. First access creates admin user
-2. Connect to local Docker socket (automatic)
-3. Import existing stacks or create new ones
+#### Deployment
+```bash
+docker compose up -d portainer
+```
 
 **Why Portainer is valuable**:
 - **Visual management**: See container status, logs, and statistics at a glance
@@ -560,34 +768,75 @@ LOG_FILE: "false"
 **Security considerations**:
 - **Docker socket access**: Has full control over Docker daemon
 - **Network exposure**: Only accessible on local network by default
-- **Admin password**: Use strong password; no password recovery mechanism
+- **Admin password**: Use strong password; note there is no password recovery mechanism
 
-### 📄 Watchtower Automatic Updates
+#### Post-Deployment Configuration
+1. Access `http://your-server-ip:9000`
+2. Create admin user on first access
+3. Connect to local Docker socket (automatic)
 
-**Schedule**: Daily at 3:00 AM
-**Purpose**: Keeps container images updated automatically
+#### Troubleshooting
+**Issue**: Cannot connect to Docker
+```bash
+# Verify Docker socket permissions
+ls -la /var/run/docker.sock
 
-**Configuration**:
-```yaml
-WATCHTOWER_CLEANUP: 'true'          # Removes old images
-WATCHTOWER_NOTIFICATIONS: 'email'    # Email notifications
+# Check if user is in docker group
+groups $USER
 ```
+
+---
+
+### 7. Watchtower Automatic Updates
+
+**Function**: Automatic container image updates
+
+**Prerequisites**: Email configuration for notifications
+
+#### Docker Compose Configuration
+```yaml
+watchtower:
+  container_name: watchtower
+  image: containrrr/watchtower:latest
+  hostname: watchtower-docker
+  networks:
+    - nginx_network
+  environment:
+    TZ: ${TZ}
+    WATCHTOWER_CLEANUP: 'true'
+    WATCHTOWER_NOTIFICATIONS: 'email'
+    WATCHTOWER_NOTIFICATION_EMAIL_FROM: ${WATCHTOWER_NOTIFICATION_EMAIL_FROM}
+    WATCHTOWER_NOTIFICATION_EMAIL_TO: ${WATCHTOWER_NOTIFICATION_EMAIL_TO}
+    WATCHTOWER_NOTIFICATION_EMAIL_SERVER: ${WATCHTOWER_NOTIFICATION_EMAIL_SERVER}
+    WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PORT: ${WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PORT}
+    WATCHTOWER_NOTIFICATION_EMAIL_SERVER_USER: ${WATCHTOWER_NOTIFICATION_EMAIL_SERVER_USER}
+    WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD: ${WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD}
+  volumes:
+    - '/var/run/docker.sock:/var/run/docker.sock'
+    - '../../.docker/config.json:/config.json'
+  command: --schedule '0 0 3 * * *'
+```
+
+**Key Parameters**:
+- `WATCHTOWER_CLEANUP: 'true'`: Removes old images after update
+- `command: --schedule '0 0 3 * * *'`: Updates daily at 3:00 AM
+- Containers can excluded via labels to prevent automatic updates with
+  ```yaml
+  labels:
+    - "com.centurylinklabs.watchtower.enable=false"
+  ```
 
 **Why automatic updates matter**:
 - **Security patches**: Containers get security fixes without manual intervention
 - **Feature updates**: Latest features and bug fixes automatically applied
 - **Maintenance reduction**: Eliminates need for manual update checking
 
-**Excluded Containers**:
-```yaml
-labels:
-  - "com.centurylinklabs.watchtower.enable=false"
-```
-**Why Pi-hole is excluded**:
-- **Breaking changes**: Pi-hole updates can change configuration formats
+**Why Pi-hole (and certain other containers) should be excluded**:
+- **Breaking changes**: Updates can change configuration formats
 - **Custom settings**: Updates might reset custom configurations
-- **Network disruption**: Failed Pi-hole updates break DNS for entire network
+- **Disruptions of critical services**: Failed Pi-hole updates break DNS for entire network. If you use Watchtower, recommend reserving it for non-critical services.
 - **Manual testing preferred**: DNS is too critical for automatic updates
+- **Difficulty tracking changes**: Automatic updates can make it difficult to track when the breaking change occurred.
 
 **Email notification benefits**:
 - **Update awareness**: Know when containers are updated
@@ -599,916 +848,196 @@ labels:
 - **Security lag**: Don't know if security updates are applied
 - **Troubleshooting difficulty**: Hard to correlate issues with recent updates
 
+#### Deployment
+```bash
+docker compose up -d watchtower
+```
+
+#### Post-Deployment Configuration
+No additional configuration required. Monitor email notifications for update reports.
+
+#### Troubleshooting
+**Issue**: Email notifications not working
+```bash
+# Test email settings
+docker logs watchtower
+
+# Verify SMTP credentials in .env file
+```
+
 ## 🌐 Network Configuration Deep Dive
 
 ### Custom Bridge Network: nginx_network
 
-**Subnet**: `172.18.0.0/16`
-**Gateway**: `172.18.0.1`
+**Subnet**: `172.XX.0.0/16`  
+**Gateway**: `172.XX.0.1`
 
 **Why Custom Network is Essential**:
-
-1. **Isolation from Default Bridge**: 
-   - Default bridge has no DNS resolution between containers
-   - Custom networks provide automatic DNS resolution via container names
-   - **Without this**: Containers cannot find each other by name, breaking service dependencies
-
-2. **Static IP Capability**: 
-   - Default bridge cannot assign static IPs
-   - Static IPs enable predictable service addressing
-   - **Without this**: Configuration files become invalid when IPs change
-
-3. **Security Isolation**: 
-   - Services are isolated from other Docker containers
-   - Network policies can be applied at the bridge level
-   - **Without this**: Potential access to unrelated containers on default bridge
-
-4. **Inter-service Communication**: 
-   - Containers communicate directly without NAT
-   - Lower latency and higher throughput
-   - **Without this**: All communication goes through host networking stack
-
-**Reference**: [Docker Bridge Networks](https://docs.docker.com/network/bridge/)
+- **Container Communication**: Enables automatic DNS resolution between containers
+- **Static IP Assignment**: Allows predictable service addressing
+- **Security Isolation**: Isolates services from other Docker containers
+- **Performance**: Direct container communication without NAT
 
 ### Static IP Address Strategy
 
-**Assigned IPs and Rationale**:
-- **Pi-hole (`172.18.0.10`)**: Easy to remember (.10), central DNS role
-- **DNSCrypt Server (`172.18.0.11`)**: Sequential numbering for organization
-- **DNSCrypt Proxy (`172.18.0.12`)**: Sequential, reflects upstream relationship
-- **SWAG (`172.18.0.99`)**: High number indicates "gateway" or "edge" function
+**IP Assignments**:
+- **Pi-hole (`172.XX.0.10`)**: Central DNS role, easy to remember
+- **DNSCrypt Server (`172.XX.0.11`)**: Sequential numbering
+- **DNSCrypt Proxy (`172.XX.0.12`)**: Upstream relationship to Pi-hole
+- **SWAG (`172.XX.0.99`)**: High number for "gateway" function
 
-**Why Static IPs Are Critical**:
+**Benefits**:
+- Configuration persistence across container restarts
+- Reliable service dependencies
+- Simplified troubleshooting and documentation
 
-1. **Configuration Persistence**: 
-   ```yaml
-   FTLCONF_dns_upstreams: 172.18.0.12#5053
-   ```
-   **Without static IPs**: Pi-hole configuration becomes invalid when DNSCrypt proxy gets new IP, causing DNS resolution failure
-
-2. **Service Dependencies**: 
-   - Services can reliably find each other across restarts
-   - No race conditions waiting for DNS resolution
-   - **Without this**: Services may fail to start if dependencies have different IPs
-
-3. **Troubleshooting Clarity**: 
-   - Consistent addressing simplifies debugging
-   - Network traces and logs show expected addresses
-   - **Without this**: Variable IPs make log analysis confusing and time-consuming
-
-4. **External References**: 
-   - Router DNS settings remain valid
-   - Firewall rules and monitoring tools work consistently
-   - **Without this**: Network configuration must be updated every time containers restart
-
-### DNS Resolution Flow and Security
+### DNS Resolution Flow
 
 ```
 Client Request
      ↓
-Router (points to Pi-hole)
+Router (configured to use Pi-hole)
      ↓
-Pi-hole (172.18.0.10:53) - Ad/malware filtering
+Pi-hole (172.XX.0.10:53) - Ad/malware filtering + caching
      ↓
-DNSCrypt Proxy (172.18.0.12:5053) - Query encryption
+DNSCrypt Proxy (172.XX.0.12:5053) - Query encryption
      ↓
-Anonymous Relay (geographic relay)
+Anonymous Relay (geographic anonymization)
      ↓
-DNS Server (encrypted connection)
+DNS Server (encrypted DNSCrypt/DoH connection)
      ↓
 Response (encrypted back through chain)
      ↓
-Pi-hole (caching and filtering)
+Pi-hole (final filtering and caching)
      ↓
-Client (receives filtered, cached response)
+Client (clean, fast response)
 ```
 
-**Security Benefits of This Chain**:
-
-1. **Query Encryption**: All upstream queries use DNSCrypt or DoH protocols
-2. **IP Address Hiding**: Anonymous relays prevent DNS servers from seeing real IP
-3. **Content Filtering**: Pi-hole blocks malicious domains before they reach clients
+**Security Benefits**:
+1. **Query Encryption**: All upstream DNS queries encrypted
+2. **IP Anonymization**: Relays hide real IP from DNS servers
+3. **Content Filtering**: Malicious domains blocked before reaching devices
 4. **Geographic Diversity**: Multiple server locations prevent single points of failure
 5. **Provider Diversity**: Multiple DNS providers prevent vendor lock-in
 
-**What Each Layer Protects Against**:
-- **ISP Monitoring**: Encrypted queries prevent ISP DNS manipulation
-- **DNS Spoofing**: Cryptographic verification prevents response tampering
-- **Traffic Analysis**: Relays make it harder to correlate queries with users
-- **Malware/Ads**: Pi-hole blocks known malicious domains
-- **Single Point Failure**: Multiple servers ensure service availability
-
 **Performance Characteristics**:
-- **First Query**: 100-200ms (full chain + server lookup)
-- **Cached Query**: 1-5ms (Pi-hole cache hit)
-- **Relay Overhead**: 20-50ms additional latency for anonymity
-- **Cache Hit Rate**: Typically 60-80% for residential usage
+- **Cached queries**: 1-5ms response time
+- **New queries**: 50-150ms including relay overhead
+- **Cache hit rate**: Typically 60-80% for residential usage
 
-## 🔧 Troubleshooting Guide
+## 🔍 DNS Security Verification
 
-### Common Issues and Solutions
+### Complete Security Audit Script
 
-#### DNS Not Working
-
-**Symptoms**: Websites don't load, "DNS resolution failed" errors
-
-**Diagnostic Steps**:
-```bash
-# Test Pi-hole directly
-dig @172.18.0.10 google.com
-
-# Test DNSCrypt proxy
-dig @172.18.0.12 -p 5053 google.com
-
-# Check container status
-docker compose ps
-
-# Check Pi-hole logs
-docker logs pihole
-
-# Check DNSCrypt proxy logs
-docker logs dnscrypt-proxy
-```
-
-**Common Causes and Fixes**:
-1. **Pi-hole not reaching DNSCrypt proxy**:
-   - Verify static IP configuration
-   - Check if containers are on same network
-   - **Fix**: Restart containers, verify network settings
-
-2. **DNSCrypt proxy server failures**:
-   - Check if configured servers are reachable
-   - Verify toml configuration syntax
-   - **Fix**: Update server list, check network connectivity
-
-3. **Router not pointing to Pi-hole**:
-   - Verify router DNS settings
-   - Check if DHCP is distributing correct DNS server
-   - **Fix**: Update router configuration, restart DHCP clients
-
-#### SSL Certificates Not Generated
-
-**Symptoms**: HTTPS sites show certificate errors, "SSL certificate not found"
-
-**Diagnostic Steps**:
-```bash
-# Check SWAG container logs
-docker logs swag
-
-# Verify DuckDNS token
-curl "https://www.duckdns.org/update?domains=${DUCKDNS}&token=${DUCKDNS_TOKEN}&ip="
-
-# Test DNS propagation
-nslookup ${DUCKDNS}.duckdns.org
-
-# Check certificate files
-ls -la ./swag/config/etc/letsencrypt/live/
-```
-
-**Common Causes and Fixes**:
-1. **DuckDNS token incorrect**:
-   - Error: "DNS challenge failed"
-   - **Fix**: Verify token in DuckDNS account, update .env file
-
-2. **Domain not updated**:
-   - Error: "Domain doesn't resolve to server IP"
-   - **Fix**: Wait for DNS propagation (up to 10 minutes), restart DuckDNS container
-
-3. **Rate limits exceeded**:
-   - Error: "Too many certificates requested"
-   - **Fix**: Wait 1 hour, or switch to staging environment temporarily
-
-4. **Email address missing**:
-   - Error: "Email required for ZeroSSL"
-   - **Fix**: Add SSL_EMAIL to .env file
-
-#### Services Not Accessible Externally
-
-**Symptoms**: Internal access works, external access fails or times out
-
-**Diagnostic Steps**:
-```bash
-# Test internal SWAG access
-curl -k https://172.18.0.99
-
-# Check port forwarding
-nmap -p 80,443 your-external-ip
-
-# Test external domain access
-curl -I https://${DUCKDNS}.duckdns.org
-
-# Check SWAG proxy configurations
-ls -la ./swag/config/nginx/proxy-confs/
-```
-
-**Common Causes and Fixes**:
-1. **Port forwarding not configured**:
-   - Router ports 80/443 not forwarded to Docker host
-   - **Fix**: Configure router port forwarding, verify with nmap
-
-2. **Firewall blocking ports**:
-   - Host firewall blocking inbound 80/443
-   - **Fix**: Configure UFW or iptables to allow ports
-
-3. **Proxy configuration missing**:
-   - Service accessible internally but no SWAG proxy config
-   - **Fix**: Create subdomain.conf file in proxy-confs directory
-
-4. **SSL certificate issues**:
-   - Certificate not valid for requested subdomain
-   - **Fix**: Regenerate wildcard certificate, check domain configuration
-
-#### Container Permission Errors
-
-**Symptoms**: "Permission denied" errors, containers exiting with code 1
-
-**Diagnostic Steps**:
-```bash
-# Check file ownership
-ls -la ./pi-hole/ ./dnscrypt/ ./swag/
-
-# Check container user
-docker exec pihole id
-
-# Check mounted volume permissions
-docker exec pihole ls -la /var/log/
-```
-
-**Common Causes and Fixes**:
-1. **Wrong file ownership**:
-   - Files owned by root instead of user 1000
-   - **Fix**: `sudo chown -R 1000:1000 ./pi-hole ./dnscrypt ./swag`
-
-2. **Missing log file**:
-   - Pi-hole can't create log file
-   - **Fix**: `touch ./pi-hole/var-log/pihole.log`
-
-3. **SELinux/AppArmor restrictions**:
-   - Security modules blocking container access
-   - **Fix**: Check security module logs, adjust policies if needed
-
-#### DNSCrypt Server Initialization Failures
-
-**Symptoms**: DNSCrypt server exits immediately, "Failed to initialize" errors
-
-**Diagnostic Steps**:
-```bash
-# Check DNSCrypt server logs
-docker logs dnscrypt-server
-
-# Verify keys directory
-ls -la ./dnscrypt/server/keys/
-
-# Check permissions
-ls -la ./dnscrypt/server/
-```
-
-**Common Causes and Fixes**:
-1. **Keys directory not writable**:
-   - Container can't write key files during init
-   - **Fix**: `sudo chown -R 1000:1000 ./dnscrypt/server/`
-
-2. **Already initialized**:
-   - Running init command when keys already exist
-   - **Fix**: Switch to `command: "start"` in docker compose.yml
-
-3. **Invalid domain name**:
-   - Domain name format incorrect in init command
-   - **Fix**: Verify DUCKDNS variable format (no .duckdns.org suffix needed)
-
-4. **Network connectivity issues**:
-   - Container can't reach external services during init
-   - **Fix**: Check internet connectivity, DNS resolution
-
-### Performance Optimization
-
-#### DNS Query Performance
-```bash
-# Measure query response times
-dig @172.18.0.10 google.com | grep "Query time"
-
-# Check cache hit rates in Pi-hole admin interface
-# Navigate to Tools → Network scan
-```
-
-**Optimization Strategies**:
-1. **Increase cache sizes**:
-   ```toml
-   # In dnscrypt-proxy.toml
-   cache_size = 8192  # Increase from 4096
-   cache_max_ttl = 172800  # Increase from 86400
-   ```
-
-2. **Optimize server selection**:
-   - Remove slow or unreliable servers from server_names
-   - Add geographically closer servers
-   - Monitor server response times
-
-3. **Adjust relay usage**:
-   - Remove relay routes for performance-critical applications
-   - Use fewer relay hops for faster queries
-
-#### Container Resource Management
-```bash
-# Monitor container resource usage
-docker stats
-
-# Check memory usage trends
-docker exec pihole free -h
-```
-
-**Resource Limits** (add to docker compose.yml if needed):
-```yaml
-services:
-  pihole:
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
-```
-
-### Monitoring and Maintenance
-
-#### Daily Monitoring Tasks
-
-1. **Pi-hole Query Log Review**:
-   - Check for unusual query patterns
-   - Verify top blocked domains are appropriate
-   - Monitor query response times
-
-2. **Certificate Expiration**:
-   ```bash
-   # Check certificate validity
-   openssl x509 -in ./swag/config/etc/letsencrypt/live/${DUCKDNS}.duckdns.org/cert.pem -text -noout | grep "Not After"
-   ```
-
-3. **Container Health Checks**:
-   ```bash
-   # Check all containers are running
-   docker compose ps
-   
-   # Check resource usage
-   docker stats --no-stream
-   ```
-
-#### Weekly Maintenance Tasks
-
-1. **Review Blocked Domains**:
-   - Check Pi-hole admin interface for false positives
-   - Update whitelist/blacklist as needed
-   - Review new blocked domains
-
-2. **Update Configurations**:
-   - Check for new DNSCrypt servers with better performance
-   - Review and update blocklists
-   - Audit proxy configurations for unused services
-
-3. **Backup Critical Configurations**:
-   ```bash
-   # Backup key configuration files
-   tar -czf homelab-backup-$(date +%Y%m%d).tar.gz \
-     ./pi-hole/etc-pihole/ \
-     ./dnscrypt/server/keys/ \
-     ./swag/config/nginx/proxy-confs/ \
-     .env
-   ```
-
-#### Monthly Deep Maintenance
-
-1. **Performance Analysis**:
-   - Review DNS query response time trends
-   - Analyze most frequently queried domains
-   - Identify optimization opportunities
-
-2. **Security Updates**:
-   - Review container vulnerability reports
-   - Update base images for critical security patches
-   - Audit network security configurations
-
-3. **Capacity Planning**:
-   - Review disk usage trends
-   - Monitor memory and CPU utilization patterns
-   - Plan for scaling if needed
-
-4. **Configuration Auditing**:
-   - Review all proxy configurations for security
-   - Check SSL certificate expiration dates
-   - Verify all services still needed
-
-### Emergency Procedures
-
-#### Complete DNS Failure Recovery
-
-**If all DNS stops working**:
-
-1. **Immediate mitigation**:
-   ```bash
-   # Temporarily use public DNS on router
-   # Primary: 1.1.1.1, Secondary: 8.8.8.8
-   ```
-
-2. **Diagnose root cause**:
-   ```bash
-   # Check container status
-   docker compose ps
-   
-   # Restart DNS chain
-   docker compose restart dnscrypt-proxy pihole
-   ```
-
-3. **Full stack restart if needed**:
-   ```bash
-   docker compose down
-   docker compose up -d
-   ```
-
-#### SSL Certificate Emergency
-
-**If certificates suddenly invalid**:
-
-1. **Switch to Let's Encrypt**:
-   ```yaml
-   # In docker compose.yml
-   CERTPROVIDER: letsencrypt
-   STAGING: false
-   ```
-
-2. **Force certificate regeneration**:
-   ```bash
-   # Remove existing certificates
-   rm -rf ./swag/config/etc/letsencrypt/live/${DUCKDNS}.duckdns.org/
-   
-   # Restart SWAG
-   docker compose restart swag
-   ```
-
-3. **Use staging environment for testing**:
-   ```yaml
-   STAGING: true  # For testing only
-   ```
-
-#### Container Corruption Recovery
-
-**If containers won't start due to corruption**:
-
-1. **Backup current state**:
-   ```bash
-   cp -r ./pi-hole ./pi-hole.backup
-   cp -r ./dnscrypt ./dnscrypt.backup
-   ```
-
-2. **Reset to clean state**:
-   ```bash
-   docker compose down
-   docker system prune -a  # Remove all unused images
-   ```
-
-3. **Restore from known good backup**:
-   ```bash
-   # Restore configurations
-   tar -xzf homelab-backup-YYYYMMDD.tar.gz
-   ```
-
-4. **Reinitialize if needed**:
-   ```bash
-   # For DNSCrypt server
-   rm -rf ./dnscrypt/server/keys/*
-   # Switch to init command and restart
-   ```
-
-## 🔒 Security Hardening
-
-### Network Security Enhancements
-
-#### Firewall Configuration
-```bash
-# UFW rules for minimal external exposure
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow 22/tcp    # SSH
-sudo ufw allow 80/tcp    # HTTP (for certificate challenges)
-sudo ufw allow 443/tcp   # HTTPS
-sudo ufw enable
-```
-
-**Why these specific rules**:
-- **Default deny**: Blocks all unnecessary inbound traffic
-- **Port 22**: SSH access for administration (consider changing default port)
-- **Port 80**: Required for Let's Encrypt HTTP challenges (can be disabled if using DNS challenges only)
-- **Port 443**: HTTPS traffic for external service access
-- **No port 53**: DNS should only be accessible internally
-
-#### Container Security
-
-**User Privileges**:
-```yaml
-# All containers run as non-root user 1000
-PUID: ${LOCAL_USER}
-PGID: ${LOCAL_USER}
-```
-**Why critical**: Running as root increases attack surface if container is compromised.
-
-**Capability Restrictions**:
-```yaml
-# Only add necessary capabilities
-cap_add:
-  - NET_ADMIN  # Only when needed (Pi-hole, SWAG)
-```
-**Why minimal capabilities**: Reduces potential for privilege escalation attacks.
-
-
-## 🔍 **DNS Security Verification Commands**
-
-Use these commands to verify every component of your secure DNS setup is working correctly. This section has individual test followed by an all-in-one test script.
-
-### **Individual Component Tests**
-
-#### **1. Zero DNS Leaks Verification**
-```bash
-# Monitor external interface for any DNS leaks (run for 30-60 seconds while browsing)
-sudo tcpdump -i $(ip route | grep default | awk '{print $5}') port 53 -v
-```
-
-**✅ What You SHOULD See:**
-```
-# Only traffic to/from your Pi-hole container:
-192.168.50.X > lpgrossi18.duckdns.org.domain: DNS queries
-lpgrossi18.duckdns.org.domain > 192.168.50.X: DNS responses
-```
-
-**❌ What You Should NOT See:**
-```bash
-# Any of these indicate DNS leaks:
-192.168.50.X > 8.8.8.8.domain         # Google DNS leak
-192.168.50.X > 1.1.1.1.domain         # Cloudflare DNS leak  
-192.168.50.X > 9.9.9.9.domain         # Quad9 DNS leak
-192.168.50.X > [ISP-IP].domain        # ISP DNS leak
-```
-
-**Why This Matters:** DNS leaks bypass your entire privacy setup, exposing your browsing habits to ISPs or public DNS providers.
-
-#### **2. Pi-hole Ad Blocking Verification**
-```bash
-# Test if Pi-hole blocks known ad domains
-dig ${PIHOLE_STATIC_IP} doubleclick.net
-```
-
-**✅ What You SHOULD See:**
-```
-;; ANSWER SECTION:
-doubleclick.net.        2       IN      A       0.0.0.0
-```
-
-**❌ What You Should NOT See:**
-```bash
-# Real IP addresses indicate blocking isn't working:
-doubleclick.net.        300     IN      A       142.250.191.110
-```
-
-**Additional Test Domains:**
-```bash
-# Test multiple known ad/tracking domains:
-dig @${PIHOLE_STATIC_IP} googletagmanager.com
-dig @${PIHOLE_STATIC_IP} facebook.com          # Should resolve normally
-dig @${PIHOLE_STATIC_IP} googleadservices.com  # Should return 0.0.0.0
-```
-
-**Why This Matters:** Confirms Pi-hole is actively filtering malicious content before it reaches your devices.
-
-#### **3. DNSCrypt Proxy Server Status**
-```bash
-# Check DNSCrypt proxy server connectivity and latency
-docker logs dnscrypt-proxy 2>&1 | grep -E "(latency|ready|server)" | tail -10
-```
-
-**✅ What You SHOULD See:**
-```
-[NOTICE] -    15ms nextdns
-[NOTICE] -    21ms cs-nyc  
-[NOTICE] -    93ms scaleway-fr
-[NOTICE] dnscrypt-proxy is ready - live servers: 7
-```
-
-**❌ What You Should NOT See:**
-```bash
-[ERROR] No servers configured
-[ERROR] All servers failed
-[WARNING] Server [cs-nyc] failed
-```
-
-**Why This Matters:** Confirms your encrypted DNS servers are reachable and relay routing is configured.
-
-#### **4. Relay Chain Verification**
-```bash
-# Check for relay usage in logs
-docker logs dnscrypt-proxy 2>&1 | grep -i relay | tail -5
-```
-
-**✅ What You SHOULD See:**
-```
-[NOTICE] Source [relays] loaded
-```
-
-**❌ What You Should NOT See:**
-```bash
-[ERROR] Relay [dnscry.pt-anon-philadelphia-ipv4] failed
-[WARNING] No relays configured
-```
-
-**Why This Matters:** Relays anonymize your IP address from DNS servers, preventing correlation of queries with your identity.
-
-#### **5. Complete DNS Chain Test**
-```bash
-# Test the entire chain: Device → Pi-hole → DNSCrypt → Encrypted DNS
-dig @${PIHOLE_STATIC_IP} google.com
-```
-
-**✅ What You SHOULD See:**
-```
-;; ANSWER SECTION:
-google.com.             300     IN      A       142.250.191.110
-
-;; Query time: 15 msec
-;; SERVER: 172.XX.0.10#53(172.XX.0.10)
-```
-
-**❌ What You Should NOT See:**
-```bash
-;; connection timed out; no servers could be reached
-dig: couldn't get address for '172.XX.0.10': not found
-```
-
-**Why This Matters:** Verifies the complete encrypted DNS resolution chain is functional.
-
-### **Complete Security Audit Script**
-
-Run the following command to test DNS leaks, Ad blocking, encrypted DNS via DNSCrypt and DoH, Basic DNS resolution, and overall docker container health.
-
-#### **Complete Security Audit Script**
-First, load your environment variables and get the Pi-hole IP:
-```bash
-# Load environment variables and get Pi-hole container IP
-source .env 2>/dev/null || echo "Warning: .env file not found, using default IPs"
-PIHOLE_IP=${PIHOLE_STATIC_IP:-$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' pihole 2>/dev/null || echo "172.18.0.10")}
-echo "Using Pi-hole IP: $PIHOLE_IP"
-```
-
-Then run the security audit:
+Run this comprehensive test to verify all security components:
 
 ```bash
 #!/bin/bash
-echo "=== DNS Security Audit ==="
+# Load environment variables and get Pi-hole IP
+source .env 2>/dev/null || echo "Warning: .env file not found, using default IPs"
+PIHOLE_IP=${PIHOLE_STATIC_IP:-$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' pihole 2>/dev/null || echo "172.18.0.10")}
+
+echo "=== DNS Security Audit (Pi-hole: $PIHOLE_IP) ==="
+
 echo "1. Checking for DNS leaks..."
 timeout 10 sudo tcpdump -i $(ip route | grep default | awk '{print $5}') port 53 | grep -v "lpgrossi18.duckdns.org" && echo "❌ DNS LEAK DETECTED!" || echo "✅ No DNS leaks found"
 
 echo "2. Testing Pi-hole blocking..."
-dig @${PIHOLE_STATIC_IP} doubleclick.net | grep "0.0.0.0" > /dev/null && echo "✅ Pi-hole blocking works" || echo "❌ Pi-hole blocking failed"
+dig @$PIHOLE_IP doubleclick.net | grep "0.0.0.0" > /dev/null && echo "✅ Pi-hole blocking works" || echo "❌ Pi-hole blocking failed"
 
 echo "3. Checking DNSCrypt servers..."
 docker logs dnscrypt-proxy 2>&1 | grep "live servers" | tail -1
 
 echo "4. Testing DNS resolution..."
-dig @${PIHOLE_STATIC_IP} google.com > /dev/null && echo "✅ DNS resolution works" || echo "❌ DNS resolution failed"
+dig @$PIHOLE_IP google.com > /dev/null && echo "✅ DNS resolution works" || echo "❌ DNS resolution failed"
 
 echo "5. Checking container health..."
 docker compose ps | grep -E "(Up|healthy)" > /dev/null && echo "✅ Containers healthy" || echo "❌ Container issues detected"
 ```
 
-### **Script Breakdown: What Each Test Does**
-
-#### **Test 1: DNS Leak Detection**
-```bash
-timeout 10 sudo tcpdump -i $(ip route | grep default | awk '{print $5}') port 53 | grep -v "lpgrossi18.duckdns.org" && echo "❌ DNS LEAK DETECTED!" || echo "✅ No DNS leaks found"
-```
-
-**Breaking it down:**
-- **`timeout 10`**: Runs tcpdump for exactly 10 seconds then stops
-- **`$(ip route | grep default | awk '{print $5}')`**: Gets your default network interface name (like `enp3s0`, `eth0`)
-- **`tcpdump -i [interface] port 53`**: Captures all DNS traffic on your external network interface
-- **`grep -v "lpgrossi18.duckdns.org"`**: Filters OUT traffic to your Pi-hole (expected traffic)
-- **`&& ... || ...`**: If grep finds unauthorized DNS traffic, shows leak warning; otherwise shows success
-
-**What this catches:** Direct queries to 8.8.8.8, 1.1.1.1, ISP DNS servers bypassing your setup
-
-#### **Test 2: Pi-hole Ad Blocking**
-```bash
-dig @${PIHOLE_STATIC_IP} doubleclick.net | grep "0.0.0.0" > /dev/null && echo "✅ Pi-hole blocking works" || echo "❌ Pi-hole blocking failed"
-```
-
-**Breaking it down:**
-- **`dig @${PIHOLE_STATIC_IP} doubleclick.net`**: Queries Pi-hole directly for known ad domain
-- **`grep "0.0.0.0" > /dev/null`**: Looks for Pi-hole's blocking response (null route)
-- **Logic**: If `0.0.0.0` found = blocking works; if not = blocking failed
-
-**What this catches:** Pi-hole configuration issues, disabled blocking, or upstream bypass
-
-#### **Test 3: DNSCrypt Server Status**
-```bash
-docker logs dnscrypt-proxy 2>&1 | grep "live servers" | tail -1
-```
-
-**Breaking it down:**
-- **`docker logs dnscrypt-proxy 2>&1`**: Gets all log output from DNSCrypt container
-- **`grep "live servers" | tail -1`**: Finds most recent server status line
-- **Example output**: `[NOTICE] dnscrypt-proxy is ready - live servers: 7`
-
-**What this tells you:**
-- **`live servers: 7`** = All servers working perfectly
-- **`live servers: 3`** = Some servers down but still functional  
-- **`live servers: 0`** = Critical failure, no encrypted DNS working
-
-#### **Test 4: DNS Resolution**
-```bash
-dig @${PIHOLE_STATIC_IP} google.com > /dev/null && echo "✅ DNS resolution works" || echo "❌ DNS resolution failed"
-```
-
-**Breaking it down:**
-- **`dig @${PIHOLE_STATIC_IP} google.com > /dev/null`**: Tests if Pi-hole can resolve legitimate domain
-- **`> /dev/null`**: Hides output, only cares about success/failure
-- **Success**: Pi-hole → DNSCrypt → upstream servers → response received
-- **Failure**: Chain is broken somewhere (Pi-hole down, DNSCrypt issues, network problems)
-
-#### **Test 5: Container Health**
-```bash
-docker compose ps | grep -E "(Up|healthy)" > /dev/null && echo "✅ Containers healthy" || echo "❌ Container issues detected"
-```
-
-**Breaking it down:**
-- **`docker compose ps`**: Shows status of all containers in your stack
-- **`grep -E "(Up|healthy)"`**: Looks for containers showing running status
-- **Success**: All containers are running properly
-- **Failure**: One or more containers stopped, restarting, or crashed
-
-### **Quick Daily Health Check**
+The output should be similar to the following:
 
 ```bash
-# 30-second verification
-dig @${PIHOLE_STATIC_IP} doubleclick.net | grep "0.0.0.0" && \
-docker logs dnscrypt-proxy 2>&1 | grep "ready" | tail -1 && \
-echo "✅ All systems operational"
+=== DNS Security Audit (Pi-hole: 172.XX.0.10) ===
+1. Checking for DNS leaks...
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on enp3s0, link-type EN10MB (Ethernet), snapshot length 262144 bytes
+tcpdump: Unable to write output: Broken pipe
+Terminated
+✅ No DNS leaks found
+2. Testing Pi-hole blocking...
+✅ Pi-hole blocking works
+3. Checking DNSCrypt servers...
+[2025-08-21 04:00:20] [NOTICE] dnscrypt-proxy is ready - live servers: 7
+4. Testing DNS resolution...
+✅ DNS resolution works
+5. Checking container health...
+✅ Containers healthy
 ```
+### Individual Component Tests
 
-**Privacy Protection Verification Summary:**
-- ✅ **DNS queries encrypted** via DNSCrypt and DoH protocols  
-- ✅ **Anonymous relay routing** prevents IP correlation with queries
-- ✅ **Zero DNS leaks** to ISP or public DNS servers
-- ✅ **Pi-hole as sole DNS** server for all network devices
-- ✅ **Active malware/ad blocking** at network level
-
-### Access Control Hardening
-
-#### Pi-hole Admin Security
-1. **Strong Admin Password**: Use 20+ character random password
-2. **Network Restrictions**: Consider restricting admin interface to specific IPs
-3. **Regular Password Rotation**: Change admin password quarterly
-
-#### SWAG Proxy Security
-1. **HTTP to HTTPS Redirect**: Ensure all traffic redirected to HTTPS
-2. **Security Headers**: Add security headers to proxy configurations
-3. **Rate Limiting**: Implement rate limiting for external access
-
-**Example Security Headers** (add to proxy configs):
-```nginx
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-add_header X-Content-Type-Options nosniff;
-add_header X-Frame-Options DENY;
-add_header X-XSS-Protection "1; mode=block";
-```
-
-#### Certificate Security
-1. **Regular Rotation**: Certificates auto-renew every 60 days
-2. **Strong Encryption**: Uses modern TLS 1.2+ protocols
-3. **OCSP Stapling**: Enabled by default in SWAG
-
-### Backup and Recovery Security
-
-#### Encrypted Backups
+**DNS Leak Detection**:
 ```bash
-# Create encrypted backup
-tar -czf - ./pi-hole/etc-pihole/ ./dnscrypt/server/keys/ .env | \
-gpg --cipher-algo AES256 --compress-algo 1 --symmetric \
---output homelab-backup-$(date +%Y%m%d).tar.gz.gpg
+# Monitor for unauthorized DNS traffic
+sudo tcpdump -i $(ip route | grep default | awk '{print $5}') port 53 -v
 ```
+Should only show traffic to/from your Pi-hole container.
 
-#### Backup Storage Security
-1. **Offsite Storage**: Store backups away from primary server
-2. **Access Controls**: Limit who can access backup files
-3. **Regular Testing**: Verify backups can be restored successfully
-
-## 📈 Scaling and Advanced Configurations
-
-### High Availability Setup
-
-#### Multiple DNSCrypt Servers
-For enhanced reliability, consider multiple DNSCrypt proxy instances:
-
-```yaml
-dnscrypt-proxy-backup:
-  container_name: dnscrypt-proxy-backup
-  image: klutchell/dnscrypt-proxy:latest
-  networks:
-    nginx_network:
-      ipv4_address: 172.18.0.13
-  # ... same config as primary
-```
-
-Then configure Pi-hole with multiple upstreams:
-```yaml
-FTLCONF_dns_upstreams: 172.18.0.12#5053;172.18.0.13#5053
-```
-
-#### Geographic Load Balancing
-For multiple location deployments, consider:
-- Regional DNSCrypt server selection
-- Latency-based server prioritization
-- Automatic failover mechanisms
-
-### Performance Scaling
-
-#### Pi-hole Performance Tuning
-```yaml
-# In docker compose.yml environment section
-FTLCONF_dns_cache_size: 10000  # Increase from default
-FTLCONF_dns_cache_insert_strategy: LRU  # Optimize cache strategy
-```
-
-#### Resource Monitoring Integration
-Consider integrating with monitoring systems:
-- Prometheus + Grafana for metrics
-- ELK stack for log analysis
-- Alerting for service failures
-
-### Advanced Security Features
-
-#### DNS-over-HTTPS (DoH) Client Support
-Some applications prefer DoH. Consider adding a DoH proxy:
-
-```yaml
-cloudflared:
-  image: cloudflare/cloudflared:latest
-  container_name: cloudflared
-  command: proxy-dns --port 5054 --upstream https://1.1.1.1/dns-query
-  networks:
-    nginx_network:
-      ipv4_address: 172.18.0.14
-```
-
-#### Network Segmentation
-For enhanced security, consider separate networks:
-- Management network (Portainer, admin interfaces)
-- DNS network (Pi-hole, DNSCrypt)
-- External network (SWAG, DuckDNS)
-
-## 🚀 Quick Start Summary
-
-For experienced users, the minimal deployment steps:
-
+**Ad Blocking Verification**:
 ```bash
-# 1. Setup directories and permissions
-mkdir homelab-network-stack && cd homelab-network-stack
-mkdir -p {pi-hole/{etc-pihole,etc-dnsmasq.d,var-log},dnscrypt/{proxy/config,server/{keys,unbound}},swag/config,portainer/data,duckdns/config}
-touch ./pi-hole/var-log/pihole.log
-sudo chown -R 1000:1000 ./pi-hole ./dnscrypt ./swag ./portainer ./duckdns
-
-# 2. Environment configuration
-cp .env.example .env  # Edit with your values
-
-# 3. Create DNSCrypt proxy config
-cat > ./dnscrypt/proxy/config/dnscrypt-proxy.toml << 'EOF'
-listen_addresses = ['0.0.0.0:5053']
-server_names = ['cs-nyc', 'scaleway-fr', 'cs-ch', 'dnscry.pt-amsterdam-ipv4', 'adguard-dns-doh', 'mullvad-base-doh', 'nextdns']
-require_nolog = true
-require_nofilter = true
-cache = true
-cache_size = 4096
-
-routes = [
-  { server_name='cs-nyc', via=['dnscry.pt-anon-philadelphia-ipv4'] },
-  { server_name='scaleway-fr', via=['anon-cs-nyc'] },
-  { server_name='cs-ch', via=['dnscry.pt-anon-chicago-ipv4'] },
-  { server_name='dnscry.pt-amsterdam-ipv4', via=['anon-cs-ga'] }
-]
-EOF
-
-# 4. Deploy services
-docker compose up -d duckdns
-sleep 180  # Wait for IP update
-docker compose up dnscrypt-server  # Watch for init completion
-# Edit docker compose.yml: change to command: "start"
-docker compose up -d
-
-# 5. Configure router DNS to Docker host IP
-# 6. Verify services are working
+# Test known ad domains
+dig @$PIHOLE_IP doubleclick.net
+dig @$PIHOLE_IP googleadservices.com
 ```
+Should return `0.0.0.0` for blocked domains.
 
-**Critical Post-Deployment Checklist**:
-- [ ] Pi-hole admin accessible on port 81 with correct upstream DNS
-- [ ] DNS queries being encrypted and filtered (check Pi-hole logs)
-- [ ] SSL certificates generated successfully (check SWAG logs)
-- [ ] External HTTPS access working via *.yourdomain.duckdns.org
-- [ ] Router pointing to Pi-hole for network-wide filtering
-- [ ] Watchtower email notifications configured and tested
-- [ ] All containers showing healthy status in Portainer
-- [ ] DNS resolution working from multiple devices on network
+**Encryption Verification**:
+```bash
+# Check DNSCrypt proxy status
+docker logs dnscrypt-proxy 2>&1 | grep -E "(latency|ready|server)"
+```
+Should show multiple live servers with latency measurements.
+
+**Relay Chain Verification**:
+```bash
+# Check for relay usage
+docker logs dnscrypt-proxy 2>&1 | grep -i relay
+```
+Should show `[NOTICE] Source [relays] loaded`.
+
+## 🎯 System Capabilities Summary
+
+With all services properly configured and verified, your network stack provides:
+
+### 🔒 **Security Features**
+- **Encrypted DNS**: All queries encrypted via DNSCrypt and DoH protocols
+- **Anonymous Resolution**: IP address hidden from DNS servers via relay chains
+- **Content Filtering**: Network-wide blocking of ads, malware, and tracking domains
+- **Secure External Access**: HTTPS-only access to internal services via reverse proxy
+- **Automatic SSL**: Certificate generation and renewal with wildcard support
+
+### 🚀 **Performance Benefits**
+- **DNS Caching**: 60-80% cache hit rate reduces external queries
+- **Geographic Diversity**: Multiple server locations ensure availability
+- **Load Balancing**: Automatic failover between DNS servers
+- **Optimized Routing**: Direct container communication reduces latency
+
+### 🛡️ **Privacy Protection**
+- **Query Anonymization**: Real IP address hidden from DNS providers
+- **No DNS Logging**: Selected servers don't log or sell query data
+- **Traffic Analysis Resistance**: Relay routing prevents correlation attacks
+- **ISP Bypass**: Encrypted queries prevent ISP DNS manipulation
+
+### 📊 **Management Capabilities**
+- **Centralized Monitoring**: Portainer provides container oversight
+- **Automatic Updates**: Watchtower keeps non-critical services current
+- **Comprehensive Logging**: Detailed logs for troubleshooting and analysis
+- **Dynamic DNS**: Automatic external IP updates for reliable access
+
+### 🔧 **Operational Excellence**
+- **Container Orchestration**: Docker Compose for consistent deployments
+- **Configuration Management**: Environment variables for easy customization
+- **Health Monitoring**: Built-in health checks and status reporting
+- **Backup-Ready**: All critical configurations in persistent volumes
+
+This stack transforms a basic home network into an enterprise-grade, privacy-focused DNS infrastructure with secure remote access capabilities.

@@ -175,6 +175,7 @@ services:
     restart: unless-stopped
     depends_on:
       - duckdns
+      # - dnscrypt-server # Only necessary if this is the only DNSCrypt server configured in your DNSCrypt Proxy.
 
   watchtower:
     container_name: watchtower
@@ -242,3 +243,5 @@ services:
       - 443:443
       - 80:80 #optional
     restart: unless-stopped
+    depends_on:
+      - duckdns
