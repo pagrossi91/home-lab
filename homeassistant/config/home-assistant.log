@@ -43013,3 +43013,170 @@ TimeoutError
 2025-08-21 22:31:50.365 WARNING (MainThread) [homeassistant.components.asuswrt.router] Reconnected to ASUS router 192.168.50.1
 2025-08-21 22:33:16.170 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
 2025-08-21 22:33:16.171 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:35:16.304 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:35:16.305 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:36:26.837 ERROR (MainThread) [custom_components.dahua] 
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 347, in _wait
+    await waiter
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/config/custom_components/dahua/client.py", line 744, in stream_events
+    async for data, _ in response.content.iter_chunks():
+        on_receive(data, channel)
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 71, in __anext__
+    rv = await self._stream.readchunk()
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 476, in readchunk
+    await self._wait("readchunk")
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 346, in _wait
+    with self._timer:
+         ^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/helpers.py", line 685, in __exit__
+    raise asyncio.TimeoutError from exc_val
+TimeoutError
+2025-08-21 22:37:16.436 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:37:16.436 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:39:16.533 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:39:16.534 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:41:16.629 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:41:16.631 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:41:27.836 ERROR (MainThread) [custom_components.dahua] 
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 347, in _wait
+    await waiter
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/config/custom_components/dahua/client.py", line 744, in stream_events
+    async for data, _ in response.content.iter_chunks():
+        on_receive(data, channel)
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 71, in __anext__
+    rv = await self._stream.readchunk()
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 476, in readchunk
+    await self._wait("readchunk")
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 346, in _wait
+    with self._timer:
+         ^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/helpers.py", line 685, in __exit__
+    raise asyncio.TimeoutError from exc_val
+TimeoutError
+2025-08-21 22:43:16.727 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:43:16.728 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:45:16.862 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:45:16.863 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:46:28.836 ERROR (MainThread) [custom_components.dahua] 
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 347, in _wait
+    await waiter
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/config/custom_components/dahua/client.py", line 744, in stream_events
+    async for data, _ in response.content.iter_chunks():
+        on_receive(data, channel)
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 71, in __anext__
+    rv = await self._stream.readchunk()
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 476, in readchunk
+    await self._wait("readchunk")
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 346, in _wait
+    with self._timer:
+         ^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/helpers.py", line 685, in __exit__
+    raise asyncio.TimeoutError from exc_val
+TimeoutError
+2025-08-21 22:47:16.996 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:47:16.997 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:49:17.095 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:49:17.096 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:51:17.189 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:51:17.189 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:51:29.837 ERROR (MainThread) [custom_components.dahua] 
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 347, in _wait
+    await waiter
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/config/custom_components/dahua/client.py", line 744, in stream_events
+    async for data, _ in response.content.iter_chunks():
+        on_receive(data, channel)
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 71, in __anext__
+    rv = await self._stream.readchunk()
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 476, in readchunk
+    await self._wait("readchunk")
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 346, in _wait
+    with self._timer:
+         ^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/helpers.py", line 685, in __exit__
+    raise asyncio.TimeoutError from exc_val
+TimeoutError
+2025-08-21 22:53:17.274 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:53:17.275 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:55:17.406 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:55:17.407 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:56:30.837 ERROR (MainThread) [custom_components.dahua] 
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 347, in _wait
+    await waiter
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/config/custom_components/dahua/client.py", line 744, in stream_events
+    async for data, _ in response.content.iter_chunks():
+        on_receive(data, channel)
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 71, in __anext__
+    rv = await self._stream.readchunk()
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 476, in readchunk
+    await self._wait("readchunk")
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 346, in _wait
+    with self._timer:
+         ^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/helpers.py", line 685, in __exit__
+    raise asyncio.TimeoutError from exc_val
+TimeoutError
+2025-08-21 22:57:17.501 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:57:17.502 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 22:59:17.633 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 22:59:17.635 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 23:00:00.272 WARNING (MainThread) [homeassistant.components.light] Got `kelvin` argument in `turn_on` service, which is deprecated and will break in Home Assistant 2026.1, please use `color_temp_kelvin` argument
+2025-08-21 23:01:17.732 ERROR (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] Failed to connect (Unknown error.)
+2025-08-21 23:01:17.734 WARNING (paho-mqtt-client-) [roborock.version_1_apis.roborock_mqtt_client_v1] [Curiosity] A network protocol error occurred when communicating with the broker.
+2025-08-21 23:01:31.836 ERROR (MainThread) [custom_components.dahua] 
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 347, in _wait
+    await waiter
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/config/custom_components/dahua/client.py", line 744, in stream_events
+    async for data, _ in response.content.iter_chunks():
+        on_receive(data, channel)
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 71, in __anext__
+    rv = await self._stream.readchunk()
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 476, in readchunk
+    await self._wait("readchunk")
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/streams.py", line 346, in _wait
+    with self._timer:
+         ^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/aiohttp/helpers.py", line 685, in __exit__
+    raise asyncio.TimeoutError from exc_val
+TimeoutError

@@ -12,6 +12,10 @@ cloud/nextcloud/*
 
 homeassistant/config/secrets.yaml
 homeassistant/config/.storage/
+homeassistant/config/home-assistant.log
+homeassistant/config/home-assistant.log.1
+homeassistant/config/home-assistant.log.fault
+
 
 homeassistant/frigate/
 !homeassistant/frigate/config/config.yml
