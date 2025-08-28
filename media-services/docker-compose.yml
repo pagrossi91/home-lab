@@ -34,7 +34,7 @@ services:
       - ./plex/transcode/temp:/transcode
       - ../../RAIDdir/servarr_data/media/:/data/media/
       - ../../RAIDdir/cloud_data/nextcloud/nextcloud/files/Documents/Grossi Family/Videos/:/data/homevideos
-    # restart: unless-stopped
+    restart: unless-stopped
 
   vpn:
     image: qmcgaw/gluetun # https://github.com/qdm12/gluetun-wiki/blob/main/setup/providers/nordvpn.md
@@ -71,7 +71,7 @@ services:
       HTTPPROXY_USERL: ${HTTPPROXY_USERL}
       HTTPPROXY_PASSWORD: ${HTTPPROXY_PASSWORD}
       HTTPPROXY_STEALTH: on
-    # restart: unless-stopped
+    restart: unless-stopped
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent
@@ -92,7 +92,7 @@ services:
       - ../../RAIDdir/servarr_data/torrents:/data/torrents/
     depends_on:
       - vpn
-    # restart: unless-stopped
+    restart: unless-stopped
 
   prowlarr: # Set trackers
     image: lscr.io/linuxserver/prowlarr:latest
@@ -302,3 +302,4 @@ services:
     depends_on:
       - sonarr
       - radarr
+    restart: unless-stopped

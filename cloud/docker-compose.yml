@@ -162,7 +162,7 @@ services:
       - ./mariadb-nc:/var/lib/mysql # Local path where the database will be stored for persistent history logs.
     ports:
       - 3307:3306
-    # restart: unless-stopped
+    restart: unless-stopped
 
 networks:
   nginx_network:

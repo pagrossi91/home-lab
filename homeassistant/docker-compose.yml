@@ -27,7 +27,7 @@ services:
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
       # DB_URL: ${DB_URL}
-    # restart: unless-stopped
+    restart: unless-stopped
     ports:
       - 8123:8123
     # devices:
@@ -60,7 +60,7 @@ services:
       - ./mariadb-ha:/var/lib/mysql # Local path where the database will be stored for persistent history logs.
     ports:
       - 3306:3306
-    # restart: unless-stopped
+    restart: unless-stopped
 
   influxdb:
     image: influxdb:latest
@@ -79,7 +79,7 @@ services:
      - ./influxdb2/data:/var/lib/influxdb2
      - ./influxdb2/config:/etc/influxdb2
      - ./influxdb2/scripts:/docker-entrypoint-initdb.d
-    # restart: always
+    restart: always
     ports:
       - 8086:8086
       # - 8083:8083 
@@ -92,7 +92,7 @@ services:
     volumes:
       - ./grafana:/var/lib/grafana
     user: ${LOCAL_USER}
-    # restart: always
+    restart: always
     ports:
       - 3000:3000
     depends_on:
@@ -113,7 +113,7 @@ services:
     environment:
       TZ: ${TZ}
     user: ${LOCAL_USER}:${LOCAL_USER}
-    # restart: unless-stopped
+    restart: unless-stopped
 
   mosquitto:
     container_name: mosquitto-mqtt
@@ -127,7 +127,7 @@ services:
     ports:
       - 1883:1883
       - 9001:9001
-    # restart: unless-stopped
+    restart: unless-stopped
 
   # zwave-js-ui: # https://zwave-js.github.io/zwave-js-ui/#/getting-started/quick-start?id=docker
   #   container_name: zwave-js-ui
@@ -193,7 +193,7 @@ services:
       FRIGATE_MQTT_USERNAME: ${HA_USER}
       FRIGATE_MQTT_PASSWORD: ${mosquitto_pwd}
       # LIBVA_DRIVER_NAME: radeonsi # To enable AMD GPU hardware acceleration; doesn't work
-    # restart: unless-stopped
+    restart: unless-stopped
     # depends_on:
     #   - amcrest2mqtt_livingroom
 
