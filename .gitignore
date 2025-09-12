@@ -15,7 +15,9 @@ homeassistant/config/.storage/
 homeassistant/config/home-assistant.log
 homeassistant/config/home-assistant.log.1
 homeassistant/config/home-assistant.log.fault
-
+# !homeassistant/config/.storage/lovelace
+# !homeassistant/config/.storage/lovelace_dashboards
+# !homeassistant/config/.storage/lovelace_resources
 
 homeassistant/frigate/
 !homeassistant/frigate/config/config.yml

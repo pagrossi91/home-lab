@@ -83,3 +83,9 @@ influxdb:
 #     url: !secret qbit_url
 #     username: !secret qbit_uname
 #     password: !secret qbit_pwd
+
+# Add llmvision /media folder
+homeassistant:
+  media_dirs:
+    media: /media
+    llmvision: /config/media/llmvision
