@@ -90,7 +90,7 @@ services:
     networks: 
       - homeassistant_network
     volumes:
-      - ${DIRECTORY}/grafana:/var/lib/grafana
+      - ${APPDATA_DIR}/grafana:/var/lib/grafana
     user: ${LOCAL_USER}
     restart: always
     ports:
@@ -107,7 +107,7 @@ services:
     ports:
       - 1880:1880
     volumes:
-      - ./node-red:/data # Local path where all Node-RED config will be stored.
+      - ${APPDATA_DIR}/node-red:/data # Local path where all Node-RED config will be stored.
     depends_on:
       - homeassistant
     environment:
@@ -176,7 +176,7 @@ services:
       - ${APPDATA_DIR}/frigate/config/config.yml:/config/config.yml
       # - ./frigate/config/:/config/
       # - ./frigate/labelmap/:/labelmap/:ro
-      - ../../RAIDdir/home_nvr/frigate/storage:/media/frigate
+      - ${MEDIADATA_DIR}/home_nvr/frigate/storage:/media/frigate
       - type: tmpfs # Optional: 1GB of memory, reduces SSD/SD Card wear
         target: /tmp/cache
         tmpfs:

@@ -80,7 +80,7 @@ In most setups, this path is wherever you want. If you clone this step is alread
 
 ### Environment Configuration
 
-Create `.env` file with your specific values. These keep sensitive variables like passwords out of your `docker-compose.yml` and in a separate file that `docker-compose.yml` can reference as a `${VARIABLE}`. Note the DIRECTORY environment variable. This is the relative path to persistent storage. Depending on your OS environment, you'll need to pick one. Or customize it to your needs.
+Create `.env` file with your specific values. These keep sensitive variables like passwords out of your `docker-compose.yml` and in a separate file that `docker-compose.yml` can reference as a `${VARIABLE}`. Note the APPDATA_DIR environment variable. This is the relative path to persistent storage. Depending on your OS environment, you'll need to pick one. Or customize it to your needs.
 
 ```bash
 # User and timezone settings

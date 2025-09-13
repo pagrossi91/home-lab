@@ -62,9 +62,7 @@ In most setups, this path is wherever you want. If you clone this step is alread
 
 ### Environment Configuration
 
-Create `.env` file with your specific values. These keep sensitive variables like passwords out of your `docker-compose.yml` and in a separate file that `docker-compose.yml` can reference as a `${VARIABLE}`. Note the DIRECTORY environment variable. This is the relative path to persistent storage. Depending on your OS environment, you'll need to pick one. Or customize it to your needs.
-
-TODO: Update this concept for the media storage (i.e. the volumes with `../../RAIDDir` for easy updating) or other system mounts.
+Create `.env` file with your specific values. These keep sensitive variables like passwords out of your `docker-compose.yml` and in a separate file that `docker-compose.yml` can reference as a `${VARIABLE}`. Note the APPDATA_DIR and MEDIADATA_DIR environment variables. These is the relative path to persistent storage (app config data and media data, respectively). Depending on your OS environment, you'll need to pick one. Or customize it to your needs.
 
 ```bash
 # User and timezone settings
@@ -72,6 +70,8 @@ LOCAL_USER=1000
 TZ=America/New_York
 APPDATA_DIR=. # This for most OS setups, excluding Unraid
 # APPDATA_DIR=/mnt/user/appdata/media-services # This is for Unraid setups
+MEDIADATA_DIR=../../RAIDdir # Customize this for where your media storage lives. For example, this maps to a RAID array
+# MEDIADATA_DIR= # TODO: Identify the mapping to the Unraid disk array
 
 # Plex Configuration
 PLEX_CLAIM=claim-xxxxxxxxxx  # Get from plex.tv/claim
@@ -198,7 +198,7 @@ qbittorrent:
   volumes:
     - ${APPDATA_DIR}/qbittorrent/config:/config
     - ${APPDATA_DIR}/qbittorrent/torrent_files:/torrent_files/
-    - ../../RAIDdir/servarr_data/torrents:/data/torrents/
+    - ${MEDIADATA_DIR}/servarr_data/torrents:/data/torrents/
   depends_on:
     - vpn
 ```
@@ -281,7 +281,7 @@ sabnzbd:
     TZ: ${TZ}
   volumes:
     - ${APPDATA_DIR}/sabnzbd:/config
-    - ../../RAIDdir/servarr_data/usenet:/data/usenet/
+    - ${MEDIADATA_DIR}/servarr_data/usenet:/data/usenet/
   depends_on:
     - vpn
 ```
@@ -455,7 +455,7 @@ radarr:
     TZ: ${TZ}
   volumes:
     - ${APPDATA_DIR}/radarr:/config
-    - ../../RAIDdir/servarr_data/:/data
+    - ${MEDIADATA_DIR}/servarr_data/:/data
   depends_on:
     - prowlarr
     - qbittorrent
@@ -554,7 +554,7 @@ sonarr:
     TZ: ${TZ}
   volumes:
     - ${APPDATA_DIR}/sonarr:/config
-    - ../../RAIDdir/servarr_data/:/data
+    - ${MEDIADATA_DIR}/servarr_data/:/data
   depends_on:
     - prowlarr
     - qbittorrent
@@ -625,7 +625,7 @@ lidarr:
     TZ: ${TZ}
   volumes:
     - ${APPDATA_DIR}/lidarr:/config
-    - ../../RAIDdir/servarr_data/:/data
+    - ${MEDIADATA_DIR}/servarr_data/:/data
   ports:
     - 8686:8686
   depends_on:
@@ -671,7 +671,7 @@ bazarr:
     TZ: ${TZ}
   volumes:
     - ${APPDATA_DIR}/bazarr:/config
-    - ../../RAIDdir/servarr_data/media:/data/media
+    - ${MEDIADATA_DIR}/servarr_data/media:/data/media
 ```
 
 #### Post-Deployment Configuration
@@ -796,7 +796,7 @@ pms:
   volumes:
     - ${APPDATA_DIR}/plex/database:/config
     - ${APPDATA_DIR}/plex/transcode/temp:/transcode
-    - ../../RAIDdir/servarr_data/media/:/data/media/
+    - ${MEDIADATA_DIR}/servarr_data/media/:/data/media/
 ```
 
 #### Post-Deployment Configuration
