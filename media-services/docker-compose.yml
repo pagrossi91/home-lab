@@ -50,7 +50,7 @@ services:
       - 6881:6881 # QBittorrent
       - 6881:6881/udp # QBittorrent
       - 8085:8085 # sabnzbd
-      - 6789:6789 # nzbget
+      # - 6789:6789 # nzbget
       # - 9696:9696 # prowlarr
       # - 7878:7878 # radarr
       # - 8989:8989 # sonarr

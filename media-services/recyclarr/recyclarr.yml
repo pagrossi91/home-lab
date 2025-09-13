@@ -13,7 +13,7 @@
 # Instance Definition: https://recyclarr.dev/wiki/yaml/config-reference/basic/
 sonarr:
   web-2160p-v4:
-    base_url: http://192.168.50.100:8989
+    base_url: http://sonarr:8989
     api_key: acd24693c56e40749449301965d56ee1
 
     include:
@@ -48,7 +48,7 @@ sonarr:
           - name: WEB-2160p
 
       - trash_ids:
-          Uncomment the next six lines to allow x265 HD releases with HDR/DV
+          # Uncomment the next six lines to allow x265 HD releases with HDR/DV
           - 47435ece6b99a0b477caf360e79ba0bb # x265 (HD)
         assign_scores_to:
           - name: WEB-2160p
@@ -80,7 +80,7 @@ sonarr:
 # Instance Definition: https://recyclarr.dev/wiki/yaml/config-reference/basic/
 radarr:
   remux-web-2160p:
-    base_url: http://192.168.50.100:7878
+    base_url: http://radarr:7878
     api_key: 0c034c405a8b401ca32d333b6680c351
 
     include:
