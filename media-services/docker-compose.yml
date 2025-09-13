@@ -30,8 +30,8 @@ services:
       ADVERTISE_IP: ${ADVERTISED_IPS}
       ALLOWED_NETWORKS: ${LAN_SUBNET}
     volumes:
-      - ./plex/database:/config
-      - ./plex/transcode/temp:/transcode
+      - ${DIRECTORY}/plex/database:/config
+      - ${DIRECTORY}/plex/transcode/temp:/transcode
       - ../../RAIDdir/servarr_data/media/:/data/media/
       - ../../RAIDdir/cloud_data/nextcloud/nextcloud/files/Documents/Grossi Family/Videos/:/data/homevideos
     restart: unless-stopped
@@ -58,7 +58,7 @@ services:
       # - 6767:6767 # bazarr
       # - 5055:5055 # overseerr
     volumes:
-      - ./gluetun:/gluetun
+      - ${DIRECTORY}/gluetun:/gluetun
     environment:
       VPN_SERVICE_PROVIDER: nordvpn
       VPN_TYPE: wireguard
@@ -84,11 +84,8 @@ services:
       TZ: ${TZ}
       WEBUI_PORT: 8080 # The torrent service would be available at http://localhost:8080/ or anywhere inside of the local network http://192.168.1.xxx:8080
     volumes:
-      - ./qbittorrent/config:/config
-      # - ../../RAIDdir/qbittorrent/incomplete:/incomplete
-      # - ./qbittorrent/torrent:/torrents
-      # - ../../RAIDdir/Media:/downloads
-      - ./qbittorrent/torrent_files:/torrent_files/
+      - ${DIRECTORY}/qbittorrent/config:/config
+      - ${DIRECTORY}/qbittorrent/torrent_files:/torrent_files/
       - ../../RAIDdir/servarr_data/torrents:/data/torrents/
     depends_on:
       - vpn
@@ -107,8 +104,8 @@ services:
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ./prowlarr:/config
+      # - /etc/localtime:/etc/localtime:ro
+      - ${DIRECTORY}/prowlarr:/config
     restart: unless-stopped
     ports:
       - 9696:9696
@@ -134,8 +131,8 @@ services:
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ./radarr:/config
+      # - /etc/localtime:/etc/localtime:ro
+      - ${DIRECTORY}/radarr:/config
       - ../../RAIDdir/servarr_data/:/data
     depends_on:
       - prowlarr
@@ -159,8 +156,8 @@ services:
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ./sonarr:/config
+      # - /etc/localtime:/etc/localtime:ro
+      - ${DIRECTORY}/sonarr:/config
       - ../../RAIDdir/servarr_data/:/data
     depends_on:
       - prowlarr
@@ -176,8 +173,8 @@ services:
         ipv4_address: ${LIDARR_STATIC_IP}
     # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ./lidarr:/config
+      # - /etc/localtime:/etc/localtime:ro
+      - ${DIRECTORY}/lidarr:/config
       - ../../RAIDdir/servarr_data/:/data
     environment:
       PUID: ${LOCAL_USER}
@@ -202,7 +199,7 @@ services:
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
     volumes:
-      - ./overseerr:/config
+      - ${DIRECTORY}/overseerr:/config
       - /data:/data
     ports:
       - 5055:5055
@@ -228,8 +225,8 @@ services:
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ./bazarr:/config
+      # - /etc/localtime:/etc/localtime:ro
+      - ${DIRECTORY}/bazarr:/config
       - ../../RAIDdir/servarr_data/media:/data/media
  
   sabnzbd: # Usenet
@@ -247,8 +244,8 @@ services:
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ./sabnzbd:/config
+      # - /etc/localtime:/etc/localtime:ro
+      - ${DIRECTORY}/sabnzbd:/config
       - ../../RAIDdir/servarr_data/usenet:/data/usenet/
     depends_on:
       - vpn
@@ -296,7 +293,7 @@ services:
     networks:
       - vpn 
     volumes:
-      - ./recyclarr:/config
+      - ${DIRECTORY}/recyclarr:/config
     environment:
       TZ: ${TZ}
     depends_on:

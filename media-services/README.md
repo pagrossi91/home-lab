@@ -35,9 +35,14 @@ QBittorrent/SABnzbd → Downloaded Media → Plex Media Server
 ### Directory Structure Setup
 
 1. **Create project directory**:
+
+In most setups, this path is wherever you want. If you clone this step is already completed. 
+
+(Untested, but expected) In Unraid, this directory will need to reside in `/mnt/user/appdata/` as that is where app storage files go per [Unraid's documentation](https://docs.unraid.net/unraid-os/using-unraid-to/run-docker-containers/managing-and-customizing-containers/).
+
    ```bash
-   mkdir homelab-media-stack
-   cd homelab-media-stack
+   mkdir media-services
+   cd media-services
    ```
 
 2. **Create directory structure**:
@@ -57,12 +62,16 @@ QBittorrent/SABnzbd → Downloaded Media → Plex Media Server
 
 ### Environment Configuration
 
-Create `.env` file with your specific values:
+Create `.env` file with your specific values. These keep sensitive variables like passwords out of your `docker-compose.yml` and in a separate file that `docker-compose.yml` can reference as a `${VARIABLE}`. Note the DIRECTORY environment variable. This is the relative path to persistent storage. Depending on your OS environment, you'll need to pick one. Or customize it to your needs.
+
+TODO: Update this concept for the media storage (i.e. the volumes with `../../RAIDDir` for easy updating) or other system mounts.
 
 ```bash
 # User and timezone settings
 LOCAL_USER=1000
 TZ=America/New_York
+DIRECTORY=. # This for most OS setups, excluding Unraid
+# DIRECTORY=/mnt/user/appdata/media-services # This is for Unraid setups
 
 # Plex Configuration
 PLEX_CLAIM=claim-xxxxxxxxxx  # Get from plex.tv/claim
@@ -118,7 +127,7 @@ vpn:
     - 6881:6881/udp
     - 8085:8085  # SABnzbd
   volumes:
-    - ./gluetun:/gluetun
+    - ${DIRECTORY}/gluetun:/gluetun
   environment:
     VPN_SERVICE_PROVIDER: nordvpn
     VPN_TYPE: wireguard
@@ -187,8 +196,8 @@ qbittorrent:
     TZ: ${TZ}
     WEBUI_PORT: 8080
   volumes:
-    - ./qbittorrent/config:/config
-    - ./qbittorrent/torrent_files:/torrent_files/
+    - ${DIRECTORY}/qbittorrent/config:/config
+    - ${DIRECTORY}/qbittorrent/torrent_files:/torrent_files/
     - ../../RAIDdir/servarr_data/torrents:/data/torrents/
   depends_on:
     - vpn
@@ -271,7 +280,7 @@ sabnzbd:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ./sabnzbd:/config
+    - ${DIRECTORY}/sabnzbd:/config
     - ../../RAIDdir/servarr_data/usenet:/data/usenet/
   depends_on:
     - vpn
@@ -350,7 +359,7 @@ prowlarr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ./prowlarr:/config
+    - ${DIRECTORY}/prowlarr:/config
   restart: unless-stopped
   ports:
     - 9696:9696
@@ -445,7 +454,7 @@ radarr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ./radarr:/config
+    - ${DIRECTORY}/radarr:/config
     - ../../RAIDdir/servarr_data/:/data
   depends_on:
     - prowlarr
@@ -544,7 +553,7 @@ sonarr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ./sonarr:/config
+    - ${DIRECTORY}/sonarr:/config
     - ../../RAIDdir/servarr_data/:/data
   depends_on:
     - prowlarr
@@ -615,7 +624,7 @@ lidarr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ./lidarr:/config
+    - ${DIRECTORY}/lidarr:/config
     - ../../RAIDdir/servarr_data/:/data
   ports:
     - 8686:8686
@@ -661,7 +670,7 @@ bazarr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ./bazarr:/config
+    - ${DIRECTORY}/bazarr:/config
     - ../../RAIDdir/servarr_data/media:/data/media
 ```
 
@@ -715,7 +724,7 @@ overseerr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ./overseerr:/config
+    - ${DIRECTORY}/overseerr:/config
   ports:
     - 5055:5055
   restart: unless-stopped
@@ -785,8 +794,8 @@ pms:
     ADVERTISE_IP: ${ADVERTISED_IPS}
     ALLOWED_NETWORKS: ${LAN_SUBNET}
   volumes:
-    - ./plex/database:/config
-    - ./plex/transcode/temp:/transcode
+    - ${DIRECTORY}/plex/database:/config
+    - ${DIRECTORY}/plex/transcode/temp:/transcode
     - ../../RAIDdir/servarr_data/media/:/data/media/
 ```
 
@@ -826,7 +835,7 @@ recyclarr:
   networks:
     - vpn 
   volumes:
-    - ./recyclarr:/config
+    - ${DIRECTORY}/recyclarr:/config
   environment:
     TZ: ${TZ}
   depends_on:

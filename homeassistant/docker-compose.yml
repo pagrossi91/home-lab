@@ -21,7 +21,7 @@ services:
       nginx_network:
         ipv4_address: 172.18.0.100 # Static Docker Home Assistant IP address on nginx_network
     volumes:
-      - ./config:/config
+      - ${DIRECTORY}/config:/config
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -57,7 +57,7 @@ services:
       MARIADB_PASSWORD: ${MYSQL_HA_PASSWORD}
       MARIADB_AUTO_UPGRADE: true
     volumes:
-      - ./mariadb-ha:/var/lib/mysql # Local path where the database will be stored for persistent history logs.
+      - ${DIRECTORY}/mariadb-ha:/var/lib/mysql # Local path where the database will be stored for persistent history logs.
     ports:
       - 3306:3306
     restart: unless-stopped
@@ -76,9 +76,9 @@ services:
       DOCKER_INFLUXDB_INIT_RETENTION: 1w
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB2_ADMINTOKEN}  
     volumes:
-     - ./influxdb2/data:/var/lib/influxdb2
-     - ./influxdb2/config:/etc/influxdb2
-     - ./influxdb2/scripts:/docker-entrypoint-initdb.d
+     - ${DIRECTORY}/influxdb2/data:/var/lib/influxdb2
+     - ${DIRECTORY}/influxdb2/config:/etc/influxdb2
+     - ${DIRECTORY}/influxdb2/scripts:/docker-entrypoint-initdb.d
     restart: always
     ports:
       - 8086:8086
@@ -90,7 +90,7 @@ services:
     networks: 
       - homeassistant_network
     volumes:
-      - ./grafana:/var/lib/grafana
+      - ${DIRECTORY}/grafana:/var/lib/grafana
     user: ${LOCAL_USER}
     restart: always
     ports:
@@ -121,9 +121,9 @@ services:
     networks: 
       - homeassistant_network
     volumes:
-      - ./mosquitto/config:/mosquitto/config
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
+      - ${DIRECTORY}/mosquitto/config:/mosquitto/config
+      - ${DIRECTORY}/mosquitto/data:/mosquitto/data
+      - ${DIRECTORY}/mosquitto/log:/mosquitto/log
     ports:
       - 1883:1883
       - 9001:9001
@@ -172,8 +172,8 @@ services:
       # - /dev/dri # for AMD GPU video decoding
       # - /dev/kfd # for AMD GPU acceleration with YOLO-NAS object detection model
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ./frigate/config/config.yml:/config/config.yml
+      # - /etc/localtime:/etc/localtime:ro
+      - ${DIRECTORY}/frigate/config/config.yml:/config/config.yml
       # - ./frigate/config/:/config/
       # - ./frigate/labelmap/:/labelmap/:ro
       - ../../RAIDdir/home_nvr/frigate/storage:/media/frigate
@@ -264,7 +264,7 @@ services:
       # Needed for Bluetooth via dbus
       - apparmor:unconfined
     volumes:
-      - ./matter/data:/data/
+      - ${DIRECTORY}/matter/data:/data/
       # Required for Bluetooth via D-Bus
       - /run/dbus:/run/dbus:ro
     # If you adjust command line, make sure to pass the default CMD arguments too:

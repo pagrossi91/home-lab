@@ -46,9 +46,14 @@ Internet → Router → Pi-hole → DNSCrypt Proxy → Encrypted DNS Providers
 ### Directory Structure Setup
 
 1. **Create project directory**:
+
+In most setups, this path is wherever you want. If you clone this step is already completed. 
+
+(Untested, but expected) In Unraid, this directory will need to reside in `/mnt/user/appdata/` as that is where app storage files go per [Unraid's documentation](https://docs.unraid.net/unraid-os/using-unraid-to/run-docker-containers/managing-and-customizing-containers/).
+
    ```bash
-   mkdir homelab-network-stack
-   cd homelab-network-stack
+   mkdir network-stack
+   cd network-stack
    ```
 
 2. **Create directory structure**:
@@ -75,12 +80,14 @@ Internet → Router → Pi-hole → DNSCrypt Proxy → Encrypted DNS Providers
 
 ### Environment Configuration
 
-Create `.env` file with your specific values. These keep sensitive variables like passwords out of your `docker-compose.yml` and in a separate file that `docker-compose.yml` can reference as a `${VARIABLE}`.
+Create `.env` file with your specific values. These keep sensitive variables like passwords out of your `docker-compose.yml` and in a separate file that `docker-compose.yml` can reference as a `${VARIABLE}`. Note the DIRECTORY environment variable. This is the relative path to persistent storage. Depending on your OS environment, you'll need to pick one. Or customize it to your needs.
 
 ```bash
 # User and timezone settings
 LOCAL_USER=1000
 TZ=America/New_York
+DIRECTORY=. # This for most OS setups, excluding Unraid
+# DIRECTORY=/mnt/user/appdata/network-services # This is for Unraid setups
 
 # Pi-hole admin interface password
 PIHOLE_WEBPASSWORD=your_secure_password_here
@@ -149,7 +156,7 @@ duckdns:
     TOKEN: ${DUCKDNS_TOKEN}
     LOG_FILE: "false"
   volumes:
-    - ./duckdns/config:/config
+    - ${DIRECTORY}/duckdns/config:/config
 ```
 
 **Key Parameters**:
@@ -222,8 +229,8 @@ dnscrypt-server:
     - '5443:5443/udp'
     - '5443:5443/tcp'
   volumes:
-    - ./dnscrypt/server/keys:/opt/encrypted-dns/etc/keys
-    - ./dnscrypt/server/unbound:/opt/unbound/etc/unbound
+    - ${DIRECTORY}/dnscrypt/server/keys:/opt/encrypted-dns/etc/keys
+    - ${DIRECTORY}/dnscrypt/server/unbound:/opt/unbound/etc/unbound
   environment:
     TZ: ${TZ}
     PUID: ${LOCAL_USER}
@@ -425,7 +432,7 @@ dnscrypt-proxy:
     PUID: ${LOCAL_USER}
     PGID: ${LOCAL_USER}
   volumes:
-    - ./dnscrypt/proxy/config:/config
+    - ${DIRECTORY}/dnscrypt/proxy/config:/config
   restart: unless-stopped
 ```
 
@@ -490,9 +497,9 @@ pihole:
     FTLCONF_dns_listeningMode: all
     TZ: ${TZ}
   volumes:
-    - './pi-hole/etc-pihole/:/etc/pihole/'
-    - './pi-hole/etc-dnsmasq.d/:/etc/dnsmasq.d/'
-    - './pi-hole/var-log/pihole.log:/var/log/pihole.log'
+    - '${DIRECTORY}/pi-hole/etc-pihole/:/etc/pihole/'
+    - '${DIRECTORY}/pi-hole/etc-dnsmasq.d/:/etc/dnsmasq.d/'
+    - '${DIRECTORY}/pi-hole/var-log/pihole.log:/var/log/pihole.log'
   cap_add:
     - NET_ADMIN
     - SYS_TIME 
@@ -675,7 +682,7 @@ swag:
     ONLY_SUBDOMAINS: false
     STAGING: false
   volumes:
-    - ./swag/config:/config
+    - ${DIRECTORY}/swag/config:/config
   ports:
     - 443:443
     - 80:80
