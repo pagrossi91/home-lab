@@ -70,8 +70,8 @@ TODO: Update this concept for the media storage (i.e. the volumes with `../../RA
 # User and timezone settings
 LOCAL_USER=1000
 TZ=America/New_York
-DIRECTORY=. # This for most OS setups, excluding Unraid
-# DIRECTORY=/mnt/user/appdata/media-services # This is for Unraid setups
+APPDATA_DIR=. # This for most OS setups, excluding Unraid
+# APPDATA_DIR=/mnt/user/appdata/media-services # This is for Unraid setups
 
 # Plex Configuration
 PLEX_CLAIM=claim-xxxxxxxxxx  # Get from plex.tv/claim
@@ -127,7 +127,7 @@ vpn:
     - 6881:6881/udp
     - 8085:8085  # SABnzbd
   volumes:
-    - ${DIRECTORY}/gluetun:/gluetun
+    - ${APPDATA_DIR}/gluetun:/gluetun
   environment:
     VPN_SERVICE_PROVIDER: nordvpn
     VPN_TYPE: wireguard
@@ -196,8 +196,8 @@ qbittorrent:
     TZ: ${TZ}
     WEBUI_PORT: 8080
   volumes:
-    - ${DIRECTORY}/qbittorrent/config:/config
-    - ${DIRECTORY}/qbittorrent/torrent_files:/torrent_files/
+    - ${APPDATA_DIR}/qbittorrent/config:/config
+    - ${APPDATA_DIR}/qbittorrent/torrent_files:/torrent_files/
     - ../../RAIDdir/servarr_data/torrents:/data/torrents/
   depends_on:
     - vpn
@@ -280,7 +280,7 @@ sabnzbd:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ${DIRECTORY}/sabnzbd:/config
+    - ${APPDATA_DIR}/sabnzbd:/config
     - ../../RAIDdir/servarr_data/usenet:/data/usenet/
   depends_on:
     - vpn
@@ -359,7 +359,7 @@ prowlarr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ${DIRECTORY}/prowlarr:/config
+    - ${APPDATA_DIR}/prowlarr:/config
   restart: unless-stopped
   ports:
     - 9696:9696
@@ -454,7 +454,7 @@ radarr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ${DIRECTORY}/radarr:/config
+    - ${APPDATA_DIR}/radarr:/config
     - ../../RAIDdir/servarr_data/:/data
   depends_on:
     - prowlarr
@@ -553,7 +553,7 @@ sonarr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ${DIRECTORY}/sonarr:/config
+    - ${APPDATA_DIR}/sonarr:/config
     - ../../RAIDdir/servarr_data/:/data
   depends_on:
     - prowlarr
@@ -624,7 +624,7 @@ lidarr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ${DIRECTORY}/lidarr:/config
+    - ${APPDATA_DIR}/lidarr:/config
     - ../../RAIDdir/servarr_data/:/data
   ports:
     - 8686:8686
@@ -670,7 +670,7 @@ bazarr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ${DIRECTORY}/bazarr:/config
+    - ${APPDATA_DIR}/bazarr:/config
     - ../../RAIDdir/servarr_data/media:/data/media
 ```
 
@@ -724,7 +724,7 @@ overseerr:
     PGID: ${LOCAL_USER}
     TZ: ${TZ}
   volumes:
-    - ${DIRECTORY}/overseerr:/config
+    - ${APPDATA_DIR}/overseerr:/config
   ports:
     - 5055:5055
   restart: unless-stopped
@@ -794,8 +794,8 @@ pms:
     ADVERTISE_IP: ${ADVERTISED_IPS}
     ALLOWED_NETWORKS: ${LAN_SUBNET}
   volumes:
-    - ${DIRECTORY}/plex/database:/config
-    - ${DIRECTORY}/plex/transcode/temp:/transcode
+    - ${APPDATA_DIR}/plex/database:/config
+    - ${APPDATA_DIR}/plex/transcode/temp:/transcode
     - ../../RAIDdir/servarr_data/media/:/data/media/
 ```
 
@@ -835,7 +835,7 @@ recyclarr:
   networks:
     - vpn 
   volumes:
-    - ${DIRECTORY}/recyclarr:/config
+    - ${APPDATA_DIR}/recyclarr:/config
   environment:
     TZ: ${TZ}
   depends_on:

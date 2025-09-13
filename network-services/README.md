@@ -86,8 +86,8 @@ Create `.env` file with your specific values. These keep sensitive variables lik
 # User and timezone settings
 LOCAL_USER=1000
 TZ=America/New_York
-DIRECTORY=. # This for most OS setups, excluding Unraid
-# DIRECTORY=/mnt/user/appdata/network-services # This is for Unraid setups
+APPDATA_DIR=. # This for most OS setups, excluding Unraid
+# APPDATA_DIR=/mnt/user/appdata/network-services # This is for Unraid setups
 
 # Pi-hole admin interface password
 PIHOLE_WEBPASSWORD=your_secure_password_here
@@ -156,7 +156,7 @@ duckdns:
     TOKEN: ${DUCKDNS_TOKEN}
     LOG_FILE: "false"
   volumes:
-    - ${DIRECTORY}/duckdns/config:/config
+    - ${APPDATA_DIR}/duckdns/config:/config
 ```
 
 **Key Parameters**:
@@ -229,8 +229,8 @@ dnscrypt-server:
     - '5443:5443/udp'
     - '5443:5443/tcp'
   volumes:
-    - ${DIRECTORY}/dnscrypt/server/keys:/opt/encrypted-dns/etc/keys
-    - ${DIRECTORY}/dnscrypt/server/unbound:/opt/unbound/etc/unbound
+    - ${APPDATA_DIR}/dnscrypt/server/keys:/opt/encrypted-dns/etc/keys
+    - ${APPDATA_DIR}/dnscrypt/server/unbound:/opt/unbound/etc/unbound
   environment:
     TZ: ${TZ}
     PUID: ${LOCAL_USER}
@@ -432,7 +432,7 @@ dnscrypt-proxy:
     PUID: ${LOCAL_USER}
     PGID: ${LOCAL_USER}
   volumes:
-    - ${DIRECTORY}/dnscrypt/proxy/config:/config
+    - ${APPDATA_DIR}/dnscrypt/proxy/config:/config
   restart: unless-stopped
 ```
 
@@ -497,9 +497,9 @@ pihole:
     FTLCONF_dns_listeningMode: all
     TZ: ${TZ}
   volumes:
-    - '${DIRECTORY}/pi-hole/etc-pihole/:/etc/pihole/'
-    - '${DIRECTORY}/pi-hole/etc-dnsmasq.d/:/etc/dnsmasq.d/'
-    - '${DIRECTORY}/pi-hole/var-log/pihole.log:/var/log/pihole.log'
+    - '${APPDATA_DIR}/pi-hole/etc-pihole/:/etc/pihole/'
+    - '${APPDATA_DIR}/pi-hole/etc-dnsmasq.d/:/etc/dnsmasq.d/'
+    - '${APPDATA_DIR}/pi-hole/var-log/pihole.log:/var/log/pihole.log'
   cap_add:
     - NET_ADMIN
     - SYS_TIME 
@@ -682,7 +682,7 @@ swag:
     ONLY_SUBDOMAINS: false
     STAGING: false
   volumes:
-    - ${DIRECTORY}/swag/config:/config
+    - ${APPDATA_DIR}/swag/config:/config
   ports:
     - 443:443
     - 80:80
