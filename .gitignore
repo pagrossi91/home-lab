@@ -47,7 +47,9 @@ media-services/recyclarr/*
 media-services/sabnzbd/*
 !media-services/sabnzbd/sabnzbd.ini
 media-services/overseerr/*
-!media-services/overseerr/settings.json
+# !media-services/overseerr/settings.json
+media-services/navidrome/*
+media-services/slskd/*
 
 network-services/dnscrypt/*
 !network-services/dnscrypt/proxy/

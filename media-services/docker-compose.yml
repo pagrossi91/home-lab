@@ -50,6 +50,9 @@ services:
       - 6881:6881 # QBittorrent
       - 6881:6881/udp # QBittorrent
       - 8085:8085 # sabnzbd
+      - 5030:5030 #slskd, http webport
+      - 5031:5031 #slskd, https webport
+      - 50300:50300 #slskd, listening for incoming connections
       # - 6789:6789 # nzbget
       # - 9696:9696 # prowlarr
       # - 7878:7878 # radarr
@@ -159,29 +162,6 @@ services:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/sonarr:/config
       - ${MEDIADATA_DIR}/servarr_data/:/data
-    depends_on:
-      - prowlarr
-      - qbittorrent
-
-  lidarr: # Music
-    container_name: lidarr
-    image: lscr.io/linuxserver/lidarr:latest
-    hostname: lidarr-docker
-    restart: unless-stopped
-    networks:
-      vpn:
-        ipv4_address: ${LIDARR_STATIC_IP}
-    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
-    volumes:
-      # - /etc/localtime:/etc/localtime:ro
-      - ${APPDATA_DIR}/lidarr:/config
-      - ${MEDIADATA_DIR}/servarr_data/:/data
-    environment:
-      PUID: ${LOCAL_USER}
-      PGID: ${LOCAL_USER}
-      TZ: ${TZ}
-    ports:
-      - 8686:8686
     depends_on:
       - prowlarr
       - qbittorrent
@@ -299,3 +279,143 @@ services:
       - sonarr
       - radarr
     restart: unless-stopped
+
+  lidarr-paul: # Music
+    container_name: lidarr-paul
+    image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
+    hostname: lidarr-docker-paul
+    restart: unless-stopped
+    networks:
+      vpn:
+        ipv4_address: ${LIDARR_PAUL_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    volumes:
+      # - /etc/localtime:/etc/localtime:ro
+      - ${APPDATA_DIR}/lidarr/paul:/config
+      - ${MEDIADATA_DIR}/servarr_data/media/music/paul:/data
+      - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/shared
+      - ${MEDIADATA_DIR}/servarr_data/soulseek/downloads:/downloads
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    ports:
+      - 8686:8686
+    depends_on:
+      - prowlarr
+      - qbittorrent
+      - slskd
+
+  lidarr-lisa: # Music
+    container_name: lidarr-lisa
+    image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
+    hostname: lidarr-docker-lisa
+    restart: unless-stopped
+    networks:
+      vpn:
+        ipv4_address: ${LIDARR_LISA_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    volumes:
+      # - /etc/localtime:/etc/localtime:ro
+      - ${APPDATA_DIR}/lidarr/lisa:/config
+      - ${MEDIADATA_DIR}/servarr_data/media/music/lisa:/data
+      - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/shared
+      - ${MEDIADATA_DIR}/servarr_data/soulseek/downloads:/downloads
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    ports:
+      - 8687:8686
+    depends_on:
+      - prowlarr
+      - qbittorrent
+      - slskd
+
+  navidrome:
+   container_name: navidrome
+   image: deluan/navidrome:latest
+  #  user: 1005:1005 #Navidrome should be run as its own user and only needs read access to its volumes
+   ports:
+     - 4533:4533
+   restart: unless-stopped
+   networks:
+      vpn:
+        ipv4_address: ${NAVIDROME_STATIC_IP}
+      nginx_network:
+        ipv4_address: ${NAVIDROME_STATIC_IP_NGINX}
+   environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+      ND_AGENTS: lastfm,spotify
+      ND_LASTFM_ENABLE: True
+      ND_LASTFM_LANGUAGE: EN
+      ND_LASTFM_APIKEY: ${ND_LASTFM_APIKEY}
+      ND_LASTFM_SECRET: ${ND_LASTFM_SECRET}
+      ND_SPOTIFY_ID: ${ND_SPOTIFY_ID}
+      ND_SPOTIFY_SECRET: ${ND_SPOTIFY_SECRET}
+   volumes:
+     - ${APPDATA_DIR}/navidrome:/data
+     - ${APPDATA_DIR}/navidrome/temp:/music #Important, see below
+     # Change these volumes accordingly to something that makes sense to you.
+     # Each user should have a library folder and a discover folder
+     # Note the right-side paths don't stem from "/music". This is because Navidrome by default adds the "/music" path
+     # to all users' libraries, and this cannot be removed. This is also why we map /music to an empty directory above.
+     - ${MEDIADATA_DIR}/servarr_data/media/music/paul:/paul/music
+     - ${MEDIADATA_DIR}/servarr_data/media/music/discover/paul:/paul/discover
+     - ${MEDIADATA_DIR}/servarr_data/media/music/lisa:/lisa/music
+     - ${MEDIADATA_DIR}/servarr_data/media/music/discover/lisa:/lisa/discover
+     - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/shared
+
+  slskd:
+    image: slskd/slskd:latest
+    container_name: slskd
+    network_mode: service:vpn
+    # user: 910:910 # Optional, if you don't want to run as root. Don't use the same user as Navidrome.
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+      SLSKD_USERNAME: ${SLSKD_USERNAME} # webUI username
+      SLSKD_PASSWORD: ${SLSKD_PASSWORD} # webUI password
+      SLSKD_REMOTE_CONFIGURATION: true
+      SLSKD_REMOTE_FILE_MANAGEMENT: true
+      SLSKD_SHARED_DIR: /data1;/data2;/data3 # This sets a default, but we'll add other users in the slskd config
+      SLSKD_DOWNLOADS_DIR: /downloads/complete
+      SLSKD_INCOMPLETE_DIR: /downloads/incomplete
+      # SLSKD_UPLOAD_SPEED_LIMIT: 500
+      SLSKD_UMASK: 000
+      SLSKD_SLSK_USERNAME: ${SLSKD_SLSK_USERNAME} # soulseek username
+      SLSKD_SLSK_PASSWORD: ${SLSKD_SLSK_PASSWORD} # soulseek password
+    volumes:
+      - ${APPDATA_DIR}/slskd:/app
+      - ${MEDIADATA_DIR}/servarr_data/soulseek/downloads:/downloads
+      - ${MEDIADATA_DIR}/servarr_data/media/music/paul:/data1 # Mount each user's library as a different directory. These are only used for uploads/shares.
+      - ${MEDIADATA_DIR}/servarr_data/media/music/lisa:/data2
+      - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/data3
+    restart: unless-stopped
+    depends_on:
+      vpn:
+        condition: service_healthy
+
+  # soularr:
+  #   image: mrusse08/soularr:latest
+  #   container_name: soularr
+  #   hostname: soularr
+  #   networks:
+  #     vpn:
+  #       ipv4_address: ${SOULARR_STATIC_IP}
+  #   # user: 1000:1000 # this should be set to your UID and GID, which can be determined via `id -u` and `id -g`, respectively
+  #   environment:
+  #     PUID: ${LOCAL_USER}
+  #     PGID: ${LOCAL_USER}
+  #     TZ: ${TZ}
+  #     SCRIPT_INTERVAL: 300 # Script interval in seconds
+  #   volumes:
+  #     # "You can set /downloads to whatever you want but will then need to change the Slskd download dir in your config file"
+  #     - ${MEDIADATA_DIR}/servarr_data/media/music/downloads/soulseek:/downloads
+  #     # Select where you are storing your config file.
+  #     # Leave "/data" since thats where the script expects the config file to be
+  #     - ${APPDATA_DIR}/soularr:/data
+  #   restart: unless-stopped
