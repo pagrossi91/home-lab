@@ -74,7 +74,7 @@ services:
   pihole:
     container_name: pihole
     image: pihole/pihole:latest
-    hostname: pihole-docker
+    hostname: pihole-rpi3
     networks:
       nginx_network:
         ipv4_address: ${PIHOLE_STATIC_IP} # internal Docker address of pihole
@@ -116,16 +116,16 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=false" # excludes container from watchtower update
 
-  # nebula-sync: # Sync pi-holes
-  #   image: ghcr.io/lovelaze/nebula-sync:latest
-  #   container_name: nebula-sync
-  #   environment:
-  #     TZ: ${TZ}
-  #     PRIMARY: ${PIHOLE_1_URL}|${PIHOLE_1_PWD}
-  #     REPLICAS: ${PIHOLE_2_URL}|${PIHOLE_2_PWD}
-  #     FULL_SYNC: true
-  #     CRON: 0 * * * *
-  #     RUN_GRAVITY: true
+  nebula-sync: # Sync pi-holes
+    image: ghcr.io/lovelaze/nebula-sync:latest
+    container_name: nebula-sync
+    environment:
+      TZ: ${TZ}
+      PRIMARY: ${PIHOLE_1_URL}|${PIHOLE_1_PWD}
+      REPLICAS: ${PIHOLE_2_URL}|${PIHOLE_2_PWD}
+      FULL_SYNC: true
+      CRON: 0 * * * *
+      RUN_GRAVITY: true
 
   # Runs a DHCP relay container that listens for DHCP discovery requests on the LAN and forwards them to Pihole on Docker’s internal network. Required with user defined network
   # dhcphelper: 
