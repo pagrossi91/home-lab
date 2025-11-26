@@ -59,3 +59,6 @@ network-services/pi-hole/*
 !network-services/pi-hole/etc-pihole/gravity.db
 !network-services/pi-hole/etc-pihole/config_backups/*
 network-services/swag/*
+
+# WireGuard peer configs (contain private keys!)
+/network-services/wireguard/config/*
