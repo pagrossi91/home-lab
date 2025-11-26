@@ -37,10 +37,10 @@ services:
     container_name: immich_machine_learning
     # For hardware acceleration, add one of -[armnn, cuda, rocm, openvino, rknn] to the image tag.
     # Example tag: ${IMMICH_VERSION:-release}-cuda
-    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
-    # extends: # uncomment this section for hardware acceleration - see https://immich.app/docs/features/ml-hardware-acceleration
-    #   file: hwaccel.ml.yml
-    #   service: cpu # set to one of [armnn, cuda, rocm, openvino, openvino-wsl, rknn] for accelerated inference - use the `-wsl` version for WSL2 where applicable
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}-openvino
+    extends: # uncomment this section for hardware acceleration - see https://immich.app/docs/features/ml-hardware-acceleration
+      file: ./immich/hwaccel.ml.yml
+      service: cpu # set to one of [armnn, cuda, rocm, openvino, openvino-wsl, rknn] for accelerated inference - use the `-wsl` version for WSL2 where applicable
     networks:
       - nginx_network
     volumes:
@@ -50,6 +50,14 @@ services:
     restart: always
     healthcheck:
       disable: false
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'      # Max 1.5 cores (37% of total)
+          memory: 3G       # 3GB RAM
+        reservations:
+          cpus: '0.5'
+          memory: 1G
 
   redis:
     container_name: immich_redis
@@ -135,7 +143,7 @@ services:
       TZ: ${TZ}
     volumes:
       - ./nextcloud/config:/config
-      - ../../RAIDdir/cloud_data/nextcloud:/data
+      - ${ARRAY_DIR}/cloud_data/nextcloud:/data
     ports:
       - 8079:443
     restart: unless-stopped

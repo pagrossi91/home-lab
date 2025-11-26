@@ -32,10 +32,14 @@ services:
     volumes:
       - ${APPDATA_DIR}/plex/database:/config
       - ${APPDATA_DIR}/plex/transcode/temp:/transcode
-      - ${MEDIADATA_DIR}/servarr_data/media/:/data/media/
-      - ${MEDIADATA_DIR}/cloud_data/nextcloud/nextcloud/files/Documents/Grossi Family/Videos/:/data/homevideos
+      - ${ARRAY_DIR}/servarr_data/media/:/data/media/
+      - ${ARRAY_DIR}/cloud_data/nextcloud/nextcloud/files/Documents/Grossi Family/Videos/:/data/homevideos
     restart: unless-stopped
-
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'      # Can use more when not competing
+          memory: 2G
   vpn:
     image: qmcgaw/gluetun # https://github.com/qdm12/gluetun-wiki/blob/main/setup/providers/nordvpn.md
     container_name: gluetun
@@ -89,7 +93,7 @@ services:
     volumes:
       - ${APPDATA_DIR}/qbittorrent/config:/config
       - ${APPDATA_DIR}/qbittorrent/torrent_files:/torrent_files/
-      - ${MEDIADATA_DIR}/servarr_data/torrents:/data/torrents/
+      - ${ARRAY_DIR}/servarr_data/torrents:/data/torrents/
     depends_on:
       - vpn
     restart: unless-stopped
@@ -136,7 +140,7 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/radarr:/config
-      - ${MEDIADATA_DIR}/servarr_data/:/data
+      - ${ARRAY_DIR}/servarr_data/:/data
     depends_on:
       - prowlarr
       - qbittorrent
@@ -161,7 +165,7 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/sonarr:/config
-      - ${MEDIADATA_DIR}/servarr_data/:/data
+      - ${ARRAY_DIR}/servarr_data/:/data
     depends_on:
       - prowlarr
       - qbittorrent
@@ -206,7 +210,7 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/bazarr:/config
-      - ${MEDIADATA_DIR}/servarr_data/media:/data/media
+      - ${ARRAY_DIR}/servarr_data/media:/data/media
  
   sabnzbd: # Usenet
     container_name: sabnzbd
@@ -225,7 +229,7 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/sabnzbd:/config
-      - ${MEDIADATA_DIR}/servarr_data/usenet:/data/usenet/
+      - ${ARRAY_DIR}/servarr_data/usenet:/data/usenet/
     depends_on:
       - vpn
 
@@ -292,9 +296,9 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/lidarr/paul:/config
-      - ${MEDIADATA_DIR}/servarr_data/media/music/paul:/data
-      - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/shared
-      - ${MEDIADATA_DIR}/servarr_data/soulseek/downloads:/downloads
+      - ${ARRAY_DIR}/servarr_data/media/music/paul:/data
+      - ${ARRAY_DIR}/servarr_data/media/music/shared:/shared
+      - ${ARRAY_DIR}/servarr_data/soulseek/downloads:/downloads
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -318,9 +322,9 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/lidarr/lisa:/config
-      - ${MEDIADATA_DIR}/servarr_data/media/music/lisa:/data
-      - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/shared
-      - ${MEDIADATA_DIR}/servarr_data/soulseek/downloads:/downloads
+      - ${ARRAY_DIR}/servarr_data/media/music/lisa:/data
+      - ${ARRAY_DIR}/servarr_data/media/music/shared:/shared
+      - ${ARRAY_DIR}/servarr_data/soulseek/downloads:/downloads
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -362,11 +366,11 @@ services:
      # Each user should have a library folder and a discover folder
      # Note the right-side paths don't stem from "/music". This is because Navidrome by default adds the "/music" path
      # to all users' libraries, and this cannot be removed. This is also why we map /music to an empty directory above.
-     - ${MEDIADATA_DIR}/servarr_data/media/music/paul:/paul/music
-     - ${MEDIADATA_DIR}/servarr_data/media/music/discover/paul:/paul/discover
-     - ${MEDIADATA_DIR}/servarr_data/media/music/lisa:/lisa/music
-     - ${MEDIADATA_DIR}/servarr_data/media/music/discover/lisa:/lisa/discover
-     - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/shared
+     - ${ARRAY_DIR}/servarr_data/media/music/paul:/paul/music
+     - ${ARRAY_DIR}/servarr_data/media/music/discover/paul:/paul/discover
+     - ${ARRAY_DIR}/servarr_data/media/music/lisa:/lisa/music
+     - ${ARRAY_DIR}/servarr_data/media/music/discover/lisa:/lisa/discover
+     - ${ARRAY_DIR}/servarr_data/media/music/shared:/shared
 
   slskd:
     image: slskd/slskd:latest
@@ -390,10 +394,10 @@ services:
       SLSKD_SLSK_PASSWORD: ${SLSKD_SLSK_PASSWORD} # soulseek password
     volumes:
       - ${APPDATA_DIR}/slskd:/app
-      - ${MEDIADATA_DIR}/servarr_data/soulseek/downloads:/downloads
-      - ${MEDIADATA_DIR}/servarr_data/media/music/paul:/data1 # Mount each user's library as a different directory. These are only used for uploads/shares.
-      - ${MEDIADATA_DIR}/servarr_data/media/music/lisa:/data2
-      - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/data3
+      - ${ARRAY_DIR}/servarr_data/soulseek/downloads:/downloads
+      - ${ARRAY_DIR}/servarr_data/media/music/paul:/data1 # Mount each user's library as a different directory. These are only used for uploads/shares.
+      - ${ARRAY_DIR}/servarr_data/media/music/lisa:/data2
+      - ${ARRAY_DIR}/servarr_data/media/music/shared:/data3
     restart: unless-stopped
     depends_on:
       vpn:
@@ -414,7 +418,7 @@ services:
   #     SCRIPT_INTERVAL: 300 # Script interval in seconds
   #   volumes:
   #     # "You can set /downloads to whatever you want but will then need to change the Slskd download dir in your config file"
-  #     - ${MEDIADATA_DIR}/servarr_data/media/music/downloads/soulseek:/downloads
+  #     - ${ARRAY_DIR}/servarr_data/media/music/downloads/soulseek:/downloads
   #     # Select where you are storing your config file.
   #     # Leave "/data" since thats where the script expects the config file to be
   #     - ${APPDATA_DIR}/soularr:/data

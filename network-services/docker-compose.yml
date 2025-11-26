@@ -6,69 +6,64 @@ networks:
       config:
         - subnet: ${NGINX_NETWORK_SUBNET}
           gateway: ${NGINX_NETWORK_GATEWAY}
+  wg-network:
+    name: "wg_network"
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${WG_NETWORK_SUBNET}
+          gateway: ${WG_NETWORK_GATEWAY}
 
 services: 
-  duckdns:
-    image: lscr.io/linuxserver/duckdns:latest
-    container_name: duckdns
-    networks:
-      - nginx_network
-    environment:
-      PUID: ${LOCAL_USER}
-      PGID: ${LOCAL_USER}
-      TZ: ${TZ}
-      SUBDOMAINS: ${DUCKDNS}
-      TOKEN: ${DUCKDNS_TOKEN}
-      LOG_FILE: "false" #optional
-    volumes:
-      - ${APPDATA_DIR}/duckdns/config:/config #optional
-    restart: unless-stopped
-
-  # wireguard:
-  #   image: linuxserver/wireguard
-  #   container_name: wireguard
+  # duckdns: # Only active on raspberry pi
+  #   image: lscr.io/linuxserver/duckdns:latest
+  #   container_name: duckdns
   #   networks:
-  #     wg-pihole: 
-  #       ipv4_address: 172.30.0.3 # internal Docker address of wireguard
-  #       ipv6_address: fdd6:24e8:ea4e::3
+  #     - nginx_network
   #   environment:
   #     PUID: ${LOCAL_USER}
   #     PGID: ${LOCAL_USER}
   #     TZ: ${TZ}
-  #     SERVERURL: ${DUCKDNS} #optional
-  #     SERVERPORT: 51820 #optional
-  #     PEERS: pgiphone, pgipad, pgmsi, lgiphone, lgipad, lgwork, misc1, misc2 # number, or list, of devices needing to connect to wireguard server
-  #     PEERDNS: 172.30.0.2 #optional # internal Docker address of pihole
-  #     INTERNAL_SUBNET: 10.13.13.0 #optional, ipv6 needs manual updating of conf files fd1a:d69f:1222::0/64
-  #     ALLOWEDIPS: 0.0.0.0/0, ::/0 #optional
-  #     PERSISTENTKEEPALIVE_PEERS: all
-  #     # LOG_CONFS: true
+  #     SUBDOMAINS: ${DUCKDNS}
+  #     TOKEN: ${DUCKDNS_TOKEN}
+  #     LOG_FILE: "false" #optional
   #   volumes:
-  #     - ./wireguard/wireguard-server/config:/config
-  #     - ./wireguard/lib/modules:/lib/modules
-  #   ports:
-  #     - 51820:51820/udp
-  #   cap_add:
-  #     - NET_ADMIN
-  #     - SYS_MODULE
-  #   dns: 
-  #     # - 192.168.1.99
-  #     - 172.30.0.2 # internal Docker address of pihole 
-  #   sysctls:
-  #     net.ipv4.conf.all.src_valid_mark: 1
-  #     net.ipv4.ip_forward: 1
-  #     # net.ipv6.conf.all.forwarding: 1
-  #     net.ipv6.conf.all.disable_ipv6: 0 # https://bodhilinux.boards.net/thread/450/wireguard-rtnetlink-answers-permission-denied
-  #     net.ipv6.conf.default.disable_ipv6: 0
-  #     net.ipv6.conf.lo.disable_ipv6: 0
-  #     # net.ipv6.conf.default.forwarding: 1
-  #     net.ipv6.conf.all.forwarding: 1
-  #     net.ipv6.conf.all.proxy_ndp: 1
-  #     # net.ipv6.conf.ens5.accept_ra: 2
+  #     - ${APPDATA_DIR}/duckdns/config:/config #optional
   #   restart: unless-stopped
-  #   depends_on:
-  #     - phiole
-  #     - wg-ipv6-helper
+
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard
+    networks:
+      wg-network:
+        ipv4_address: ${WG_STATIC_IP}
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+      SERVERURL: ${DOMAIN}
+      SERVERPORT: 51821
+      PEERS: pgiphone,pgipad,plmba,lgiphone,lgipad,misc1,misc2
+      PEERDNS: ${PIHOLE_UNRAID}, ${PIHOLE_RPI3}  # Clients can use both
+      INTERNAL_SUBNET: ${INTERNAL_SUBNET}
+      ALLOWEDIPS: 0.0.0.0/0
+      PERSISTENTKEEPALIVE_PEERS: all
+      LOG_CONFS: true
+    volumes:
+      - ${APPDATA_DIR}/wireguard/config:/config
+      - ${APPDATA_DIR}/wireguard/lib/modules:/lib/modules
+    ports:
+      - 51821:51820/udp
+    dns:  # Use both pi-holes for container's own DNS
+      - ${PIHOLE_UNRAID}
+      - ${PIHOLE_RPI3}
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    restart: unless-stopped
 
   # https://github.com/pi-hole/docker-pi-hole/blob/master/README.md
   pihole:
@@ -116,7 +111,7 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=false" # excludes container from watchtower update
 
-  # nebula-sync: # Sync pi-holes
+  # nebula-sync: # Sync pi-holes; Only active on raspberry pi
   #   image: ghcr.io/lovelaze/nebula-sync:latest
   #   container_name: nebula-sync
   #   environment:
@@ -184,8 +179,8 @@ services:
     volumes:
       - ${APPDATA_DIR}/dnscrypt/proxy/config:/config
     restart: unless-stopped
-    depends_on:
-      - duckdns
+    # depends_on:
+      # - duckdns
       # - dnscrypt-server # Only necessary if this is the only DNSCrypt server configured in your DNSCrypt Proxy.
 
   watchtower:
@@ -228,31 +223,31 @@ services:
       - ${APPDATA_DIR}/portainer/data:/data
     restart: always
 
-  swag:
-    image: lscr.io/linuxserver/swag:latest
-    container_name: swag
-    networks:
-      nginx_network:
-        ipv4_address: ${SWAG_STATIC_IP}
-    cap_add:
-      - NET_ADMIN
-    environment:
-      PUID: ${LOCAL_USER}
-      PGID: ${LOCAL_USER}
-      TZ: ${TZ}
-      URL: ${DOMAIN}
-      VALIDATION: dns
-      SUBDOMAINS: wildcard # Certs will cover sub-subdomains of your main subdomain (ie. *.yoursubdomain.duckdns.org)
-      CERTPROVIDER: zerossl
-      DNSPLUGIN: duckdns
-      EMAIL: ${SSL_EMAIL} #optional. Used for ZeroSSL certs. Without it, cert provider defaults to Let's Encrypt. Also used for receiving expiration notices from Let's Encrypt if renewal fails
-      ONLY_SUBDOMAINS: false #optional
-      STAGING: false #optional
-    volumes:
-      - ${APPDATA_DIR}/swag/config:/config
-    ports:
-      - 443:443
-      - 80:80 #optional
-    restart: unless-stopped
-    depends_on:
-      - duckdns
+  # swag: # Only active on raspberry pi
+  #   image: lscr.io/linuxserver/swag:latest
+  #   container_name: swag
+  #   networks:
+  #     nginx_network:
+  #       ipv4_address: ${SWAG_STATIC_IP}
+  #   cap_add:
+  #     - NET_ADMIN
+  #   environment:
+  #     PUID: ${LOCAL_USER}
+  #     PGID: ${LOCAL_USER}
+  #     TZ: ${TZ}
+  #     URL: ${DOMAIN}
+  #     VALIDATION: dns
+  #     SUBDOMAINS: wildcard # Certs will cover sub-subdomains of your main subdomain (ie. *.yoursubdomain.duckdns.org)
+  #     CERTPROVIDER: zerossl
+  #     DNSPLUGIN: duckdns
+  #     EMAIL: ${SSL_EMAIL} #optional. Used for ZeroSSL certs. Without it, cert provider defaults to Let's Encrypt. Also used for receiving expiration notices from Let's Encrypt if renewal fails
+  #     ONLY_SUBDOMAINS: false #optional
+  #     STAGING: false #optional
+  #   volumes:
+  #     - ${APPDATA_DIR}/swag/config:/config
+  #   ports:
+  #     - 443:443
+  #     - 80:80 #optional
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - duckdns

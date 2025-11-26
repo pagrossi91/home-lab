@@ -176,7 +176,7 @@ services:
       - ${APPDATA_DIR}/frigate/config/config.yml:/config/config.yml
       # - ./frigate/config/:/config/
       # - ./frigate/labelmap/:/labelmap/:ro
-      - ${MEDIADATA_DIR}/home_nvr/frigate/storage:/media/frigate
+      - ${ARRAY_DIR}/home_nvr/frigate/storage:/media/frigate
       - type: tmpfs # Optional: 1GB of memory, reduces SSD/SD Card wear
         target: /tmp/cache
         tmpfs:
@@ -196,6 +196,11 @@ services:
     restart: unless-stopped
     # depends_on:
     #   - amcrest2mqtt_livingroom
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'      # Max 1 core (25% of total)
+          memory: 4G       # 2GB RAM
 
   # appdaemon:
   #   container_name: appdaemon
@@ -253,22 +258,22 @@ services:
   #       MQTT_PASSWORD: ${mosquitto_pwd}
   #       HOME_ASSISTANT: "true"
 
-  # python-matter-server
-  matter-server:
-    image: ghcr.io/home-assistant-libs/python-matter-server:stable
-    container_name: matter-server
-    restart: unless-stopped
-    # Required for mDNS to work correctly
-    network_mode: host
-    security_opt:
-      # Needed for Bluetooth via dbus
-      - apparmor:unconfined
-    volumes:
-      - ${APPDATA_DIR}/matter/data:/data/
-      # Required for Bluetooth via D-Bus
-      - /run/dbus:/run/dbus:ro
-    # If you adjust command line, make sure to pass the default CMD arguments too:
-    #command: --storage-path /data --paa-root-cert-dir /data/credentials --bluetooth-adapter 0
+  # # python-matter-server
+  # matter-server:
+  #   image: ghcr.io/home-assistant-libs/python-matter-server:stable
+  #   container_name: matter-server
+  #   restart: unless-stopped
+  #   # Required for mDNS to work correctly
+  #   network_mode: host
+  #   security_opt:
+  #     # Needed for Bluetooth via dbus
+  #     - apparmor:unconfined
+  #   volumes:
+  #     - ${APPDATA_DIR}/matter/data:/data/
+  #     # Required for Bluetooth via D-Bus
+  #     - /run/dbus:/run/dbus:ro
+  #   # If you adjust command line, make sure to pass the default CMD arguments too:
+  #   #command: --storage-path /data --paa-root-cert-dir /data/credentials --bluetooth-adapter 0
 
 # volumes:
 #   # nvr:
