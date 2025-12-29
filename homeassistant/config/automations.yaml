@@ -390,7 +390,6 @@
       tap_action: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
       master_condition: []
       review_severity:
-      - alert
       - detection
       url_2: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
         | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.'' ~ camera,

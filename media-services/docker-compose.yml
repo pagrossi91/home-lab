@@ -34,12 +34,13 @@ services:
       - ${APPDATA_DIR}/plex/transcode/temp:/transcode
       - ${ARRAY_DIR}/servarr_data/media/:/data/media/
       - ${ARRAY_DIR}/cloud_data/nextcloud/nextcloud/files/Documents/Grossi Family/Videos/:/data/homevideos
-    restart: unless-stopped
+    restart: always
     deploy:
       resources:
         limits:
           cpus: '2.0'      # Can use more when not competing
           memory: 2G
+
   vpn:
     image: qmcgaw/gluetun # https://github.com/qdm12/gluetun-wiki/blob/main/setup/providers/nordvpn.md
     container_name: gluetun
@@ -78,7 +79,7 @@ services:
       HTTPPROXY_USERL: ${HTTPPROXY_USERL}
       HTTPPROXY_PASSWORD: ${HTTPPROXY_PASSWORD}
       HTTPPROXY_STEALTH: on
-    restart: unless-stopped
+    restart: always
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent
@@ -96,7 +97,7 @@ services:
       - ${ARRAY_DIR}/servarr_data/torrents:/data/torrents/
     depends_on:
       - vpn
-    restart: unless-stopped
+    restart: always
 
   prowlarr: # Set trackers
     image: lscr.io/linuxserver/prowlarr:latest
@@ -113,7 +114,7 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/prowlarr:/config
-    restart: unless-stopped
+    restart: always
     ports:
       - 9696:9696
     depends_on:
@@ -124,7 +125,7 @@ services:
     container_name: radarr
     image: lscr.io/linuxserver/radarr:latest
     hostname: radarr-docker
-    restart: unless-stopped
+    restart: always
     networks:
       vpn:
         ipv4_address: ${RADARR_STATIC_IP}
@@ -149,7 +150,7 @@ services:
     container_name: sonarr
     image: lscr.io/linuxserver/sonarr:latest
     hostname: sonarr-docker
-    restart: unless-stopped
+    restart: always
     networks:
       vpn:
         ipv4_address: ${SONARR_STATIC_IP}
@@ -186,15 +187,15 @@ services:
       - ${APPDATA_DIR}/overseerr:/config
     ports:
       - 5055:5055
-    restart: unless-stopped
+    restart: always
     depends_on:
       - prowlarr
       - qbittorrent
-    
+
   bazarr: # Subtitles
     container_name: bazarr
     image: lscr.io/linuxserver/bazarr:latest
-    restart: unless-stopped
+    restart: always
     networks:
       vpn:
         ipv4_address: ${BAZARR_STATIC_IP}
@@ -215,7 +216,7 @@ services:
   sabnzbd: # Usenet
     container_name: sabnzbd
     image: lscr.io/linuxserver/sabnzbd:latest
-    restart: unless-stopped
+    restart: always
     network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
     logging:
       driver: json-file
@@ -282,13 +283,13 @@ services:
     depends_on:
       - sonarr
       - radarr
-    restart: unless-stopped
+    restart: always
 
   lidarr-paul: # Music
     container_name: lidarr-paul
     image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
     hostname: lidarr-docker-paul
-    restart: unless-stopped
+    restart: always
     networks:
       vpn:
         ipv4_address: ${LIDARR_PAUL_STATIC_IP}
@@ -314,7 +315,7 @@ services:
     container_name: lidarr-lisa
     image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
     hostname: lidarr-docker-lisa
-    restart: unless-stopped
+    restart: always
     networks:
       vpn:
         ipv4_address: ${LIDARR_LISA_STATIC_IP}
@@ -337,18 +338,18 @@ services:
       - slskd
 
   navidrome:
-   container_name: navidrome
-   image: deluan/navidrome:latest
+    container_name: navidrome
+    image: deluan/navidrome:latest
   #  user: 1005:1005 #Navidrome should be run as its own user and only needs read access to its volumes
-   ports:
-     - 4533:4533
-   restart: unless-stopped
-   networks:
+    ports:
+      - 4533:4533
+    restart: always
+    networks:
       vpn:
         ipv4_address: ${NAVIDROME_STATIC_IP}
       nginx_network:
         ipv4_address: ${NAVIDROME_STATIC_IP_NGINX}
-   environment:
+    environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
@@ -359,18 +360,18 @@ services:
       ND_LASTFM_SECRET: ${ND_LASTFM_SECRET}
       ND_SPOTIFY_ID: ${ND_SPOTIFY_ID}
       ND_SPOTIFY_SECRET: ${ND_SPOTIFY_SECRET}
-   volumes:
-     - ${APPDATA_DIR}/navidrome:/data
-     - ${APPDATA_DIR}/navidrome/temp:/music #Important, see below
-     # Change these volumes accordingly to something that makes sense to you.
-     # Each user should have a library folder and a discover folder
-     # Note the right-side paths don't stem from "/music". This is because Navidrome by default adds the "/music" path
-     # to all users' libraries, and this cannot be removed. This is also why we map /music to an empty directory above.
-     - ${ARRAY_DIR}/servarr_data/media/music/paul:/paul/music
-     - ${ARRAY_DIR}/servarr_data/media/music/discover/paul:/paul/discover
-     - ${ARRAY_DIR}/servarr_data/media/music/lisa:/lisa/music
-     - ${ARRAY_DIR}/servarr_data/media/music/discover/lisa:/lisa/discover
-     - ${ARRAY_DIR}/servarr_data/media/music/shared:/shared
+    volumes:
+      - ${APPDATA_DIR}/navidrome:/data
+      - ${APPDATA_DIR}/navidrome/temp:/music #Important, see below
+      # Change these volumes accordingly to something that makes sense to you.
+      # Each user should have a library folder and a discover folder
+      # Note the right-side paths don't stem from "/music". This is because Navidrome by default adds the "/music" path
+      # to all users' libraries, and this cannot be removed. This is also why we map /music to an empty directory above.
+      - ${ARRAY_DIR}/servarr_data/media/music/paul:/paul/music
+      - ${ARRAY_DIR}/servarr_data/media/music/discover/paul:/paul/discover
+      - ${ARRAY_DIR}/servarr_data/media/music/lisa:/lisa/music
+      - ${ARRAY_DIR}/servarr_data/media/music/discover/lisa:/lisa/discover
+      - ${ARRAY_DIR}/servarr_data/media/music/shared:/shared
 
   slskd:
     image: slskd/slskd:latest
@@ -398,7 +399,7 @@ services:
       - ${ARRAY_DIR}/servarr_data/media/music/paul:/data1 # Mount each user's library as a different directory. These are only used for uploads/shares.
       - ${ARRAY_DIR}/servarr_data/media/music/lisa:/data2
       - ${ARRAY_DIR}/servarr_data/media/music/shared:/data3
-    restart: unless-stopped
+    restart: always
     depends_on:
       vpn:
         condition: service_healthy

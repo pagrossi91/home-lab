@@ -63,7 +63,7 @@ services:
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
-    restart: unless-stopped
+    restart: always
 
   # https://github.com/pi-hole/docker-pi-hole/blob/master/README.md
   pihole:
@@ -103,7 +103,7 @@ services:
       - NET_ADMIN # Required if you are using Pi-hole as your DHCP server, else not needed
       - SYS_TIME 
       - SYS_NICE
-    restart: unless-stopped
+    restart: always
     depends_on:
       # - wireguard # force pi-hole to start after wireguard
       # - dhcphelper # force pi-hole to start after dhcphelper
@@ -143,25 +143,25 @@ services:
   #     - NET_ADMIN
   #     - SYS_MODULE
 
-  dnscrypt-server:
-    image: jedisct1/dnscrypt-server:latest
-    container_name: dnscrypt-server
-    restart: always
-    networks:
-      nginx_network:
-        ipv4_address: ${DNSCRYPTSERVER_STATIC_IP}
-    # command: "init -N ${DOMAIN} -E '${DNSCRYPTSERVER_STATIC_IP}:5443' -A"
-    command: "start"
-    ports:
-        - '5443:5443/udp'
-        - '5443:5443/tcp'
-    volumes:
-      - ${APPDATA_DIR}/dnscrypt/server/keys:/opt/encrypted-dns/etc/keys
-      - ${APPDATA_DIR}/dnscrypt/server/unbound:/opt/unbound/etc/unbound
-    environment:
-      TZ: ${TZ}
-      PUID: ${LOCAL_USER}
-      PGID: ${LOCAL_USER}
+  # dnscrypt-server:
+  #   image: jedisct1/dnscrypt-server:latest
+  #   container_name: dnscrypt-server
+  #   restart: always
+  #   networks:
+  #     nginx_network:
+  #       ipv4_address: ${DNSCRYPTSERVER_STATIC_IP}
+  #   # command: "init -N ${DOMAIN} -E '${DNSCRYPTSERVER_STATIC_IP}:5443' -A"
+  #   command: "start"
+  #   ports:
+  #       - '5443:5443/udp'
+  #       - '5443:5443/tcp'
+  #   volumes:
+  #     - ${APPDATA_DIR}/dnscrypt/server/keys:/opt/encrypted-dns/etc/keys
+  #     - ${APPDATA_DIR}/dnscrypt/server/unbound:/opt/unbound/etc/unbound
+  #   environment:
+  #     TZ: ${TZ}
+  #     PUID: ${LOCAL_USER}
+  #     PGID: ${LOCAL_USER}
 
   dnscrypt-proxy:
     container_name: dnscrypt-proxy
@@ -178,7 +178,7 @@ services:
       PGID: ${LOCAL_USER}
     volumes:
       - ${APPDATA_DIR}/dnscrypt/proxy/config:/config
-    restart: unless-stopped
+    restart: always
     # depends_on:
       # - duckdns
       # - dnscrypt-server # Only necessary if this is the only DNSCrypt server configured in your DNSCrypt Proxy.

@@ -8,6 +8,7 @@ http:
     - !secret server_IP # Local LAN
     - 172.18.0.0/24 # Docker nginx network
     - 172.21.0.0/24 # Docker home assistant network
+    - !secret rpi3_IP
 
 # Enable forwarding to DuckDNS subdomain
 duckdns:

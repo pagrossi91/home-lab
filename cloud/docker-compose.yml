@@ -58,6 +58,9 @@ services:
         reservations:
           cpus: '0.5'
           memory: 1G
+    depends_on:
+      - immich-server
+
 
   redis:
     container_name: immich_redis
@@ -146,7 +149,7 @@ services:
       - ${ARRAY_DIR}/cloud_data/nextcloud:/data
     ports:
       - 8079:443
-    restart: unless-stopped
+    restart: always
     depends_on:
       - mariadb-nc
 
@@ -169,8 +172,8 @@ services:
       - ./mariadb-nc:/var/lib/mysql # Local path where the database will be stored for persistent history logs.
     ports:
       - 3307:3306
-    restart: unless-stopped
-
+    restart: always
+    
 networks:
   nginx_network:
     external: true
