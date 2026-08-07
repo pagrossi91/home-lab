@@ -15,21 +15,21 @@ networks:
           gateway: ${WG_NETWORK_GATEWAY}
 
 services: 
-  # duckdns: # Only active on raspberry pi
-  #   image: lscr.io/linuxserver/duckdns:latest
-  #   container_name: duckdns
-  #   networks:
-  #     - nginx_network
-  #   environment:
-  #     PUID: ${LOCAL_USER}
-  #     PGID: ${LOCAL_USER}
-  #     TZ: ${TZ}
-  #     SUBDOMAINS: ${DUCKDNS}
-  #     TOKEN: ${DUCKDNS_TOKEN}
-  #     LOG_FILE: "false" #optional
-  #   volumes:
-  #     - ${APPDATA_DIR}/duckdns/config:/config #optional
-  #   restart: unless-stopped
+  duckdns: # Only active on raspberry pi
+    image: lscr.io/linuxserver/duckdns:latest
+    container_name: duckdns
+    networks:
+      - nginx_network
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+      SUBDOMAINS: ${DUCKDNS}
+      TOKEN: ${DUCKDNS_TOKEN}
+      LOG_FILE: "false" #optional
+    volumes:
+      - ${APPDATA_DIR}/duckdns/config:/config #optional
+    restart: unless-stopped
 
   wireguard:
     image: lscr.io/linuxserver/wireguard:latest
@@ -205,7 +205,7 @@ services:
       # config.json only necessary if using custom docker respository (GitHub, etc). Not currently in use but mounting the drive anyway
       - '../../.docker/config.json:/config.json' # run `touch ../../.docker/config.json` first unless you like errors
     command: --schedule '0 0 3 * * *' # updates daily at 0300
-    #command: --interval 30 # updates every 30 seconds (for troubleshooting)
+    # command: --interval 30 # updates every 30 seconds (for troubleshooting)
     restart: unless-stopped
 
   portainer:
@@ -223,31 +223,31 @@ services:
       - ${APPDATA_DIR}/portainer/data:/data
     restart: always
 
-  # swag: # Only active on raspberry pi
-  #   image: lscr.io/linuxserver/swag:latest
-  #   container_name: swag
-  #   networks:
-  #     nginx_network:
-  #       ipv4_address: ${SWAG_STATIC_IP}
-  #   cap_add:
-  #     - NET_ADMIN
-  #   environment:
-  #     PUID: ${LOCAL_USER}
-  #     PGID: ${LOCAL_USER}
-  #     TZ: ${TZ}
-  #     URL: ${DOMAIN}
-  #     VALIDATION: dns
-  #     SUBDOMAINS: wildcard # Certs will cover sub-subdomains of your main subdomain (ie. *.yoursubdomain.duckdns.org)
-  #     CERTPROVIDER: zerossl
-  #     DNSPLUGIN: duckdns
-  #     EMAIL: ${SSL_EMAIL} #optional. Used for ZeroSSL certs. Without it, cert provider defaults to Let's Encrypt. Also used for receiving expiration notices from Let's Encrypt if renewal fails
-  #     ONLY_SUBDOMAINS: false #optional
-  #     STAGING: false #optional
-  #   volumes:
-  #     - ${APPDATA_DIR}/swag/config:/config
-  #   ports:
-  #     - 443:443
-  #     - 80:80 #optional
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - duckdns
+  swag: # Only active on raspberry pi
+    image: lscr.io/linuxserver/swag:latest
+    container_name: swag
+    networks:
+      nginx_network:
+        ipv4_address: ${SWAG_STATIC_IP}
+    cap_add:
+      - NET_ADMIN
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+      URL: ${DOMAIN}
+      VALIDATION: dns
+      SUBDOMAINS: wildcard # Certs will cover sub-subdomains of your main subdomain (ie. *.yoursubdomain.duckdns.org)
+      CERTPROVIDER: zerossl
+      DNSPLUGIN: duckdns
+      EMAIL: ${SSL_EMAIL} #optional. Used for ZeroSSL certs. Without it, cert provider defaults to Let's Encrypt. Also used for receiving expiration notices from Let's Encrypt if renewal fails
+      ONLY_SUBDOMAINS: false #optional
+      STAGING: false #optional
+    volumes:
+      - ${APPDATA_DIR}/swag/config:/config
+    ports:
+      - 443:443
+      - 80:80 #optional
+    restart: unless-stopped
+    # depends_on:
+    #   - duckdns

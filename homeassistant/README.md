@@ -259,7 +259,7 @@ Since the container volumes are being mapped to our host drive, first create the
 Follow the [Creating a config file](https://docs.frigate.video/guides/getting_started) and [Configuration File](https://docs.frigate.video/configuration/index) parts of the Frigate documentation to configure `config.yml`. Here, define the MQTT host, username, and password.
 
     mqtt:
-      host: 192.168.1.99
+      host: 192.168.X.X
       user: homeassistant
       password: '{FRIGATE_MQTT_PASSWORD}'
 
@@ -273,7 +273,7 @@ Finding the proper camera rtsp path took some finagling. The Amcrest ASH26-W Flo
 
 which in practice in this `config.yml` file looks like the following, where `{FRIGATE_RSTP_PASSWORD}` is pulled from the Docker container's environment variable in the `.env` file.
 
-    rtsp://admin:{FRIGATE_RTSP_PASSWORD}@192.168.1.21/
+    rtsp://admin:{FRIGATE_RTSP_PASSWORD}@192.168.X.X/
 
 I did not need the extra port number or specific path details shown in the documentation. 
 
@@ -302,6 +302,108 @@ So far this has fixed playback in Home Assistant on Firefox, but playback in the
 #### 7.4. Home Assistant Notifications for Frigate Events
 
 Not operational yet. [Start here](https://docs.frigate.video/guides/ha_notifications).
+
+### 8. Matter Server
+
+Matter support is provided by [matterjs-server](https://github.com/matter-js/matterjs-server) rather than the older `python-matter-server` (still present but commented out in `docker-compose.yml` for reference). The [Docker documentation](https://github.com/matter-js/matterjs-server/blob/main/docs/docker.md) is the main reference. The container exposes two things on port `5580`: a WebSocket API at `/ws` that Home Assistant talks to, and a web dashboard at `/`.
+
+The service in `docker-compose.yml` is:
+
+    matterjs-server:
+        container_name: matterjs-server
+        image: ghcr.io/matter-js/matterjs-server:latest
+        read_only: true
+        network_mode: host
+        restart: unless-stopped
+        environment:
+            TZ: ${TZ}
+            PRIMARY_INTERFACE: br0
+            LISTEN_ADDRESS: "172.21.0.1"
+        volumes:
+            - "${APPDATA_DIR}/matter/data:/data"
+
+Note that this service is the one exception to every other service in this file: it is **not** on `homeassistant_network`. The reasoning is documented below.
+
+#### 8.1. Why Host Networking is Required
+
+I initially put this on `homeassistant_network` like everything else, for compartmentalization. The container started, reported healthy, and self-configured — but was completely unreachable. Two separate problems:
+
+1. There was no `ports:` mapping, so port `5580` was exposed but never published. `docker ps` shows `5580/tcp` with no host binding. This is the visible symptom, but fixing it alone accomplishes nothing.
+2. Matter cannot work on a Docker bridge network at all. Device discovery uses mDNS multicast (`224.0.0.251` / `ff02::fb`), and Docker's bridge driver NATs unicast traffic but does not forward multicast to the LAN. Separately, Matter's operational protocol is IPv6-only, and the bridge network has no IPv6.
+
+`network_mode: host` is therefore mandatory, and it is mutually exclusive with the `networks:` key — the container leaves `homeassistant_network` entirely. Compartmentalization is instead done at the socket level (see [Securing the WebSocket API](#82-securing-the-websocket-api)).
+
+#### 8.2. Securing the WebSocket API
+
+The server docs warn that it binds to all interfaces by default, and the logs say so on startup:
+
+    WARN  MatterServer  WebSocket server is listening on all network interfaces. Use --listen-address to restrict access.
+
+This matters because the WebSocket API is **unauthenticated** and grants full control over every commissioned device. Unraid has no host firewall by default, so the bind address is the actual access control. Two environment variables split the responsibility:
+
+- `PRIMARY_INTERFACE` controls which interface **Matter** uses. Set to `br0`, the real LAN bridge, so it isn't auto-detected onto `bond0`, `eth0`, or one of the Docker bridges.
+- `LISTEN_ADDRESS` controls which address the **WebSocket API and dashboard** bind to. Set to `172.21.0.1`, which is the host's own address on `homeassistant_network`.
+
+That second one is the useful trick. Even though the container is on host networking, binding the API to the bridge gateway means only the host and containers on `homeassistant_network` can reach it — nothing on the LAN can. Matter's own protocol traffic still rides `br0` normally, so discovery and commissioning are unaffected. This recovers most of the compartmentalization that host mode gave up.
+
+The dashboard is not reachable from a browser on the LAN as a result. To view it during setup, temporarily append the LAN IP and then narrow it back afterwards:
+
+    LISTEN_ADDRESS: "172.21.0.1,${SERVER_IP}"
+
+Keep `172.21.0.1` first — the container's `healthcheck.sh` only resolves the first entry in a comma-separated list. Also note that the healthcheck cannot resolve interface *names*, only IP literals, so `LISTEN_ADDRESS: br0` would report the container as unhealthy even while working correctly.
+
+A reverse proxy is not needed here. That advice in the docs is aimed at people deliberately exposing the dashboard; the SWAG instance should not front this service.
+
+#### 8.3. Enabling IPv6
+
+Matter requires IPv6 on the LAN. It does **not** require an IPv6 internet connection or DHCPv6 from the ISP — on a flat network with no VLANs, link-local `fe80::` addresses are sufficient, and those are auto-assigned as soon as IPv6 isn't disabled. IPv6 was off on both the router and the server, so both needed changes.
+
+On the Asus router, set the IPv6 connection type to **Native** with `Enable Router Advertisement: Yes` and `Auto Configuration Setting: Stateless`. Avoid **Passthrough**, which bridges the ISP's IPv6 straight through and disables the router's IPv6 firewall, and ignore the 6to4/6in4/6rd tunnels, which exist to tunnel IPv6 over an IPv4-only ISP. If the ISP provides no IPv6 the WAN address stays empty, which is fine — Router Advertisement still runs on the LAN.
+
+On Unraid, the setting is **Settings > Network Settings > eth0 > Network protocol**, changed from `IPv4 only` to `IPv4+IPv6`. This is the field that actually matters, and it's easy to miss: setting `IPv6 address assignment` to `Automatic` on its own does nothing while the protocol above it is still IPv4-only. Symptom of getting this half-right is `/boot/config/network.cfg` containing
+
+    PROTOCOL[0]="ipv4"
+    USE_DHCP6[0]="yes"
+
+which stores the IPv6 preference but leaves `disable_ipv6 = 1` on every interface. Parts of Network Settings are greyed out while the array is started, so stop the array if the dropdown won't change. Changing this reconfigures `br0` and will briefly drop the webUI.
+
+Verify from the Unraid CLI with
+
+    ip -6 addr show dev br0
+
+which should yield at least a link-local address, and a global one if the ISP provides a prefix:
+
+    inet6 2001:db8:41e:26f0:1a2b:3cff:fe4d:5e6f/64 scope global dynamic mngtmpaddr noprefixroute
+    inet6 fe80::1a2b:3cff:fe4d:5e6f/64 scope link proto kernel_ll
+
+The `fe80::` address is the required one; the global address is a bonus. Restart the Matter container afterwards so it picks up the newly available IPv6 interface.
+
+#### 8.4. Connecting Matter to Home Assistant
+
+Add the Matter integration in Home Assistant and set the server URL to
+
+    ws://172.21.0.1:5580/ws
+
+Not `localhost` — Home Assistant runs in a container, and `172.21.0.1` is how it reaches the host across `homeassistant_network`. A successful connection logs `WebSocket server start_listening` in the Matter container.
+
+#### 8.5. Verifying and Troubleshooting
+
+Confirm the API is reachable from Home Assistant but not from the LAN:
+
+    docker exec home-assistant curl -s -o /dev/null -w "%{http_code}\n" http://172.21.0.1:5580/health
+    curl -s -m 4 -o /dev/null -w "%{http_code}\n" http://192.168.X.X:5580/
+
+The first should return `200` and the second `000` (refused). Confirm mDNS is publishing on the real LAN by checking the logs for
+
+    INFO  MdnsAdvertisement  Publishing kind: operational service: mdns:...._matter._tcp.local
+
+Three processes binding `5353` is expected and not a conflict — Unraid's `avahi-daemon` (for SMB discovery) and the Matter server coexist via `SO_REUSEPORT`.
+
+Two limitations worth knowing before commissioning the first device. The server logs `BLE is not enabled on this platform` because no Bluetooth adapter is passed through, so commissioning is done through the Home Assistant companion app on a phone, which uses the phone's Bluetooth to hand off Wi-Fi credentials. And Thread devices still require a border router on the network (Apple TV, Nest Hub, SkyConnect/ZBT-1); Wi-Fi and Ethernet Matter devices work without one.
+
+Optionally, if the ISP rotates its IPv6 prefix and devices start dropping, enabling a ULA (`fd00::/8`) range on the Asus makes addressing independent of the ISP. This hasn't been necessary, since Matter on a flat L2 segment leans on link-local addresses, which are MAC-derived and stable.
+
+If AiMesh nodes are in use, note that multicast forwarding across the mesh backhaul is historically unreliable. Commission devices while they're in range of the main router; a device that works near the router but not near a node points at the mesh, not the Docker configuration. `IGMP/MLD Snooping` under `LAN > Switch Control` can also blackhole the multicast mDNS depends on if enabled without a proper querier.
 
 ## MariaDB
 

@@ -54,7 +54,7 @@ services:
       - 8080:8080 # QBittorrent web port
       - 6881:6881 # QBittorrent
       - 6881:6881/udp # QBittorrent
-      - 8085:8085 # sabnzbd
+      # - 8085:8085 # sabnzbd
       - 5030:5030 #slskd, http webport
       - 5031:5031 #slskd, https webport
       - 50300:50300 #slskd, listening for incoming connections
@@ -68,11 +68,11 @@ services:
     volumes:
       - ${APPDATA_DIR}/gluetun:/gluetun
     environment:
-      VPN_SERVICE_PROVIDER: nordvpn
       VPN_TYPE: wireguard
-      WIREGUARD_PRIVATE_KEY: ${Nord_PRIVATEKEY2025}
+      VPN_SERVICE_PROVIDER: nordvpn # or protonvpn
+      WIREGUARD_PRIVATE_KEY: ${Nord_PRIVATEKEY}
       SERVER_COUNTRIES: United States
-      SERVER_HOSTNAMES: ${P2P_SERVERS}
+      SERVER_HOSTNAMES: ${Nord_P2P_SERVERS}   
       # HTTP proxy server allows Prowlarr access to Qbittorrent from a different network (i.e. not going through the VPN)
       HTTPPROXY: on
       HTTPPROXY_LISTENING_ADDRESS: :8118
@@ -146,6 +146,31 @@ services:
       - prowlarr
       - qbittorrent
 
+  radarr4k: # Movies
+    container_name: radarr4k
+    image: lscr.io/linuxserver/radarr:latest
+    hostname: radarr4k-docker
+    restart: always
+    networks:
+      vpn:
+        ipv4_address: ${RADARR4K_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    logging:
+      driver: json-file
+    ports:
+      - 7879:7878
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    volumes:
+      # - /etc/localtime:/etc/localtime:ro
+      - ${APPDATA_DIR}/radarr4k:/config
+      - ${ARRAY_DIR}/servarr_data/:/data
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
   sonarr: # TV shows
     container_name: sonarr
     image: lscr.io/linuxserver/sonarr:latest
@@ -171,12 +196,38 @@ services:
       - prowlarr
       - qbittorrent
 
-  overseerr: # Discover content
-    image: lscr.io/linuxserver/overseerr:latest
-    container_name: overseerr
+  sonarr4k: # TV shows
+    container_name: sonarr4k
+    image: lscr.io/linuxserver/sonarr:latest
+    hostname: sonarr4k-docker
+    restart: always
     networks:
       vpn:
-        ipv4_address: ${OVERSEERR_STATIC_IP}
+        ipv4_address: ${SONARR4K_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    logging:
+      driver: json-file
+    ports:
+      - 8990:8989
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    volumes:
+      # - /etc/localtime:/etc/localtime:ro
+      - ${APPDATA_DIR}/sonarr4k:/config
+      - ${ARRAY_DIR}/servarr_data/:/data
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
+  seerr: # Discover content
+    image: ghcr.io/seerr-team/seerr:latest
+    init: true
+    container_name: seerr
+    networks:
+      vpn:
+        ipv4_address: ${SEERR_STATIC_IP}
       nginx_network: # For remote access
         ipv4_address: 172.18.0.101 # Static Docker Overseerr IP address on nginx_network
     environment:
@@ -184,7 +235,7 @@ services:
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
     volumes:
-      - ${APPDATA_DIR}/overseerr:/config
+      - ${APPDATA_DIR}/seerr:/app/config
     ports:
       - 5055:5055
     restart: always
@@ -217,12 +268,15 @@ services:
     container_name: sabnzbd
     image: lscr.io/linuxserver/sabnzbd:latest
     restart: always
-    network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    networks:
+      vpn:
+        ipv4_address: ${SABNZBD_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
     logging:
       driver: json-file
-    # ports:
+    ports:
       # - 8080:8080
-      # - 8085:8085 # Defined in vpn service
+      - 8085:8085 # Defined in vpn service
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -231,8 +285,8 @@ services:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/sabnzbd:/config
       - ${ARRAY_DIR}/servarr_data/usenet:/data/usenet/
-    depends_on:
-      - vpn
+    # depends_on:
+    #   - vpn
 
   # nzbget: # Redundant with Sabnzbd
   #   image: lscr.io/linuxserver/nzbget:latest
@@ -279,6 +333,7 @@ services:
     volumes:
       - ${APPDATA_DIR}/recyclarr:/config
     environment:
+      RECYCLARR_CREATE_CONFIG: false
       TZ: ${TZ}
     depends_on:
       - sonarr

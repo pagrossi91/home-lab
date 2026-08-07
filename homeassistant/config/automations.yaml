@@ -1,29 +1,30 @@
 - id: '1721266883410'
   alias: Kitchen Island lights on for evening
   description: ''
-  trigger:
-  - platform: sun
-    event: sunset
+  triggers:
+  - event: sunset
     offset: -00:30:00
-  condition: []
-  action:
-  - service: light.turn_on
+    trigger: sun
+  conditions: []
+  actions:
+  - action: light.turn_on
     metadata: {}
-    data:
-      kelvin: 4000
-      brightness_pct: 100
     target:
       entity_id: light.kitchen_island
+    data:
+      color_temp_kelvin: 4000
+      brightness_pct: 100
   mode: single
 - id: '1721266959801'
   alias: 'Kitchen Island lights off at night '
   description: ''
-  trigger:
-  - platform: time
-    at: 00:00:00
-  condition: []
-  action:
-  - service: light.turn_off
+  triggers:
+  - at: '23:15:00'
+    trigger: time
+  conditions: []
+  actions:
+  - action: light.turn_off
+    metadata: {}
     target:
       entity_id: light.kitchen_island
     data:
@@ -32,18 +33,19 @@
 - id: '1721267166912'
   alias: Kitchen Island lights dim at 2130
   description: ''
-  trigger:
-  - platform: time
-    at: '21:30:00'
-  condition: []
-  action:
-  - service: light.turn_on
+  triggers:
+  - at: '21:30:00'
+    trigger: time
+  conditions: []
+  actions:
+  - action: light.turn_on
+    metadata: {}
     target:
       entity_id: light.kitchen_island
     data:
+      color_temp_kelvin: 3000
+      brightness_pct: 25
       transition: 300
-      kelvin: 3000
-      brightness_pct: 50
   mode: single
 - id: '1721268127220'
   alias: Hutch on for evening
@@ -77,47 +79,32 @@
 - id: '1721268548576'
   alias: Front Lights on for evening
   description: ''
-  trigger:
-  - platform: sun
-    event: sunset
+  triggers:
+  - event: sunset
     offset: -00:30:00
-  condition: []
-  action:
-  - service: light.turn_on
-    metadata: {}
+    trigger: sun
+  conditions: []
+  actions:
+  - metadata: {}
     data:
-      brightness_pct: 100
+      brightness_pct: 30
     target:
       entity_id: light.front_lights
-  mode: single
-- id: '1721268654637'
-  alias: Front Lights dim at 2130
-  description: ''
-  trigger:
-  - platform: time
-    at: '21:30:00'
-  condition: []
-  action:
-  - service: light.turn_on
-    metadata: {}
-    data:
-      brightness_pct: 15
-    target:
-      entity_id: light.front_lights
+    action: light.turn_on
   mode: single
 - id: '1721268714482'
-  alias: Front Lights off at 2300
+  alias: Front Lights off at 2200
   description: ''
-  trigger:
-  - platform: time
-    at: '23:00:00'
-  condition: []
-  action:
-  - service: light.turn_off
-    metadata: {}
+  triggers:
+  - at: '22:00:00'
+    trigger: time
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id: light.front_lights
+    action: light.turn_off
   mode: single
 - id: '1721269179018'
   alias: Garage Left offline notification
@@ -163,42 +150,43 @@
 - id: '1721271453963'
   alias: Kitchen Island lights dim at 2300
   description: ''
-  trigger:
-  - platform: time
-    at: '23:00:00'
-  condition: []
-  action:
-  - service: light.turn_on
+  triggers:
+  - at: '23:00:00'
+    trigger: time
+  conditions: []
+  actions:
+  - action: light.turn_on
+    metadata: {}
     target:
       entity_id: light.kitchen_island
     data:
       transition: 300
-      kelvin: 2000
-      brightness_pct: 25
+      color_temp_kelvin: 2000
+      brightness_pct: 15
   mode: single
 - id: '1721346844039'
   alias: Kitchen Island - Adjust color temp for daytime
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - light.kitchen_island
     from: 'off'
     to: 'on'
-  condition:
+    trigger: state
+  conditions:
   - condition: sun
     before: sunset
     before_offset: -00:30:00
     after: sunrise
     after_offset: 00:30:00
-  action:
-  - service: light.turn_on
+  actions:
+  - action: light.turn_on
     metadata: {}
-    data:
-      brightness_pct: 100
-      kelvin: 4000
     target:
       entity_id: light.kitchen_island
+    data:
+      color_temp_kelvin: 4000
+      brightness_pct: 100
   mode: single
 - id: '1721348824948'
   alias: Master Bedroom - Adjust color temp for daytime
@@ -277,48 +265,6 @@
     target:
       entity_id: switch.pauls_office
   mode: single
-- id: '1743618572576'
-  alias: 'Living room motion '
-  description: ''
-  triggers:
-  - entity_id:
-    - binary_sensor.amcrest_ip4m_1041b_amc058e8_ce1851_motion
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 3
-    trigger: state
-    from: 'off'
-    to: 'on'
-  conditions: []
-  actions:
-  - metadata: {}
-    data:
-      message: Motion detected in the Living Room
-      title: Living Room
-    action: notify.mobile_app_pauls_iphone
-  mode: single
-- id: '1743638555738'
-  alias: Front Door motion
-  description: ''
-  triggers:
-  - entity_id:
-    - binary_sensor.front_door_person_occupancy
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 3
-    trigger: state
-    from: 'off'
-    to: 'on'
-  conditions: []
-  actions:
-  - metadata: {}
-    data:
-      message: Person detected at the Front Door
-      title: Front Door
-    action: notify.mobile_app_pauls_iphone
-  mode: single
 - id: '1743965005710'
   alias: Living Room Recording OFF Geofence
   description: ''
@@ -381,8 +327,8 @@
       critical: 'false'
       video: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
       final_update: true
-      base_url: https://homeassistant.lpgrossi18.duckdns.org
-      debug: false
+      base_url: !secret ha_external_url
+      debug: true
       ios_live_view: camera.front_doorbell_main
       zones: []
       zone_filter: false
@@ -412,7 +358,7 @@
       critical: 'false'
       video: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
       final_update: true
-      base_url: https://homeassistant.lpgrossi18.duckdns.org
+      base_url: !secret ha_external_url
       debug: false
       ios_live_view: camera.living_room_camera_main
       zones:
@@ -423,3 +369,156 @@
       review_severity:
       - alert
       redacted: false
+- id: '1773799823339'
+  alias: Front Door Lights dim after sunset
+  description: ''
+  triggers:
+  - event: sunset
+    offset: +00:30:00
+    trigger: sun
+  conditions: []
+  actions:
+  - metadata: {}
+    data:
+      brightness_pct: 15
+    target:
+      entity_id: light.front_lights
+    action: light.turn_on
+  mode: single
+- id: '1776015320440'
+  alias: Basement Flood Alert
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.shellyfloodg4_48f6eed3a5b0_flood
+    from:
+    - 'off'
+    to:
+    - 'on'
+  conditions: []
+  actions:
+  - metadata: {}
+    data:
+      message: Water detected in the basement!
+      title: Flooding Alert
+    action: notify.mobile_app_pauls_iphone
+  mode: single
+- id: '1776015392685'
+  alias: Shelly Flood battery low
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.shellyfloodg4_48f6eed3a5b0_battery
+    above: 0
+    below: 10
+  conditions: []
+  actions:
+  - metadata: {}
+    data:
+      message: Shelly Flood sensor batteries are low.
+      title: Sensor Battery Low
+    action: notify.mobile_app_pauls_iphone
+  mode: single
+- id: '1777598203992'
+  alias: Pool Pump On
+  description: ''
+  triggers:
+  - trigger: time
+    at: '22:00:00'
+  conditions: []
+  actions:
+  - type: turn_on
+    device_id: 44e66bdc2511ff8f6efcd69beb6f074b
+    entity_id: 6946123c5c1a6aab741b9297cc27648e
+    domain: switch
+  mode: single
+- id: '1777715744995'
+  alias: Pool Pump Controller overheating
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.pool_pump_shelly_overheating
+    from:
+    - 'off'
+    to:
+    - 'on'
+  conditions: []
+  actions:
+  - action: notify.mobile_app_pauls_iphone
+    metadata: {}
+    data:
+      message: The pool pump Shelly controller is overheating.
+      title: Pool Pump
+  mode: single
+- id: '1777715788677'
+  alias: Pool Pump Controller Power Problem
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.pool_pump_shelly_overcurrent
+    from:
+    - 'off'
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.pool_pump_shelly_overpowering
+    from:
+    - 'off'
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.pool_pump_shelly_overvoltage
+    from:
+    - 'off'
+    to:
+    - 'on'
+  conditions: []
+  actions:
+  - action: notify.mobile_app_pauls_iphone
+    metadata: {}
+    data:
+      message: There's a pool pump controller power problem.
+      title: Pool Pump
+  mode: single
+- id: '1780874365331'
+  alias: Turn on Pool Pump after Overheating
+  description: ''
+  triggers:
+  - type: no_problem
+    device_id: 44e66bdc2511ff8f6efcd69beb6f074b
+    entity_id: a9aed41fb73f9f92ec41468351d49f27
+    domain: binary_sensor
+    trigger: device
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  conditions:
+  - condition: time
+    after: '22:00:00'
+    before: 08:00:00
+  actions:
+  - type: turn_on
+    device_id: 44e66bdc2511ff8f6efcd69beb6f074b
+    entity_id: 6946123c5c1a6aab741b9297cc27648e
+    domain: switch
+  mode: single
+- id: '1780874657686'
+  alias: Pool Pump Off
+  description: ''
+  triggers:
+  - trigger: time
+    at: 08:00:00
+  conditions: []
+  actions:
+  - type: turn_off
+    device_id: 44e66bdc2511ff8f6efcd69beb6f074b
+    entity_id: 6946123c5c1a6aab741b9297cc27648e
+    domain: switch
+  mode: single

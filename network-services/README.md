@@ -1004,7 +1004,7 @@ PIHOLE_IP=${PIHOLE_STATIC_IP:-$(docker inspect -f '{{range .NetworkSettings.Netw
 echo "=== DNS Security Audit (Pi-hole: $PIHOLE_IP) ==="
 
 echo "1. Checking for DNS leaks..."
-timeout 10 sudo tcpdump -i $(ip route | grep default | awk '{print $5}') port 53 | grep -v "lpgrossi18.duckdns.org" && echo "❌ DNS LEAK DETECTED!" || echo "✅ No DNS leaks found"
+timeout 10 sudo tcpdump -i $(ip route | grep default | awk '{print $5}') port 53 | grep -v "${DUCKDNS_DOMAIN:?set DUCKDNS_DOMAIN in .env}" && echo "❌ DNS LEAK DETECTED!" || echo "✅ No DNS leaks found"
 
 echo "2. Testing Pi-hole blocking..."
 dig @$PIHOLE_IP doubleclick.net | grep "0.0.0.0" > /dev/null && echo "✅ Pi-hole blocking works" || echo "❌ Pi-hole blocking failed"

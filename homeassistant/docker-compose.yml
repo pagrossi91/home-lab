@@ -36,7 +36,7 @@ services:
     depends_on:
       - mariadb-ha
       - influxdb
-      - grafana
+      # - grafana
       # - mosquitto
       # - zwave-js-ui
       # - frigate
@@ -84,36 +84,36 @@ services:
       - 8086:8086
       # - 8083:8083 
 
-  grafana:
-    image: grafana/grafana-oss:latest
-    container_name: grafana
-    networks: 
-      - homeassistant_network
-    volumes:
-      - ${APPDATA_DIR}/grafana:/var/lib/grafana
-    user: ${LOCAL_USER}
-    restart: always
-    ports:
-      - 3000:3000
-    depends_on:
-      - influxdb
+  # grafana:
+  #   image: grafana/grafana-oss:latest
+  #   container_name: grafana
+  #   networks: 
+  #     - homeassistant_network
+  #   volumes:
+  #     - ${APPDATA_DIR}/grafana:/var/lib/grafana
+  #   user: ${LOCAL_USER}
+  #   restart: always
+  #   ports:
+  #     - 3000:3000
+  #   depends_on:
+  #     - influxdb
 
-  nodered:
-    container_name: nodered
-    image: nodered/node-red:latest
-    hostname: nodered-docker
-    networks: 
-      - homeassistant_network
-    ports:
-      - 1880:1880
-    volumes:
-      - ${APPDATA_DIR}/node-red:/data # Local path where all Node-RED config will be stored.
-    depends_on:
-      - homeassistant
-    environment:
-      TZ: ${TZ}
-    user: ${LOCAL_USER}:${LOCAL_USER}
-    restart: always
+  # nodered:
+  #   container_name: nodered
+  #   image: nodered/node-red:latest
+  #   hostname: nodered-docker
+  #   networks: 
+  #     - homeassistant_network
+  #   ports:
+  #     - 1880:1880
+  #   volumes:
+  #     - ${APPDATA_DIR}/node-red:/data # Local path where all Node-RED config will be stored.
+  #   depends_on:
+  #     - homeassistant
+  #   environment:
+  #     TZ: ${TZ}
+  #   user: ${LOCAL_USER}:${LOCAL_USER}
+  #   restart: always
 
   mosquitto:
     container_name: mosquitto-mqtt
@@ -161,7 +161,7 @@ services:
     image: ghcr.io/blakeblackshear/frigate:stable
     networks: 
       - homeassistant_network
-    shm_size: 306mb # update for your cameras based on calculation above
+    shm_size: 370mb # update for your cameras based on calculation above
     # group_add: # Groups required to use AMD GPU as video decoder (VA-API)
     #   - 44 # video
     #   - 107 # render
@@ -192,6 +192,11 @@ services:
       FRIGATE_MQTT_HOST: ${SERVER_IP}
       FRIGATE_MQTT_USERNAME: ${HA_USER}
       FRIGATE_MQTT_PASSWORD: ${mosquitto_pwd}
+      # Camera LAN addresses. Frigate substitutes any FRIGATE_-prefixed env
+      # var into config.yml, which keeps real IPs out of the tracked config.
+      FRIGATE_CAM_FRONT_DOOR_IP: ${amcrest_ip_frontdoorbell}
+      FRIGATE_CAM_LIVING_ROOM_IP: ${amcrest_ip_livingroom}
+      FRIGATE_CAM_BACKYARD_IP: ${amcrest_ip_backyard}
       # LIBVA_DRIVER_NAME: radeonsi # To enable AMD GPU hardware acceleration; doesn't work
     restart: always
     # depends_on:
@@ -274,6 +279,34 @@ services:
   #     - /run/dbus:/run/dbus:ro
   #   # If you adjust command line, make sure to pass the default CMD arguments too:
   #   #command: --storage-path /data --paa-root-cert-dir /data/credentials --bluetooth-adapter 0
+
+  matterjs-server:
+    container_name: matterjs-server
+    image: ghcr.io/matter-js/matterjs-server:latest
+    read_only: true
+    # Matter REQUIRES host networking: discovery is mDNS multicast and the
+    # operational protocol is IPv6-only. A Docker bridge network NATs unicast
+    # and drops multicast, so device commissioning can never work there.
+    # Note: host mode is mutually exclusive with `networks:` — this container
+    # is not attached to homeassistant_network. Compartmentalization is done
+    # at the socket level via LISTEN_ADDRESS below instead.
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+      # Matter protocol traffic goes out the real LAN bridge.
+      PRIMARY_INTERFACE: br0
+      # The WebSocket API + dashboard bind ONLY to the host's address on
+      # homeassistant_network (172.21.0.1). Reachable from the HA container
+      # and from the host itself; NOT reachable from the LAN.
+      # To reach the dashboard from a browser on your LAN, temporarily append
+      # the LAN IP: "172.21.0.1,${SERVER_IP}"
+      LISTEN_ADDRESS: "172.21.0.1"
+      # Optional Node.js heap hint. No default — size depends on the number of
+      # commissioned nodes. See docs/docker.md "Node.js Memory Limit".
+      # NODE_OPTIONS: "--max-old-space-size=512"
+    volumes:
+      - "${APPDATA_DIR}/matter/data:/data"
 
 # volumes:
 #   # nvr:

@@ -1,0 +1,142 @@
+mqtt:
+  host: mosquitto-mqtt # Container name for Mosquitto MQTT service
+  user: '{FRIGATE_MQTT_USERNAME}' # Auth username for Mosquitto MQTT
+  password: '{FRIGATE_MQTT_PASSWORD}' # Auth password for Mosquitto MQTT
+
+detectors:
+  coral: # Utilizing a USB-connected TPU
+    type: edgetpu
+    device: usb
+  # rocm: # Utilizing discrete AMD GPU; requires YOLO-NAS model to be installed separately....not usinga as RX 580 is incompatible with latest ROCm
+  #   type: rocm
+
+# model:
+#   model_type: yolonas # https://github.com/blakeblackshear/frigate/tree/dev/notebooks/; YOLO_NAS_Pretrained_Export.ipynb builds the model; notebook executed in Google Collab
+#   width: 320 # <--- should match whatever was set in notebook
+#   height: 320 # <--- should match whatever was set in notebook
+#   input_pixel_format: bgr
+#   path: /config/yolo_nas_s.onnx
+#   # labelmap_path: /labelmap/coco-80.txt
+
+ffmpeg: # For AMD GPU as the video decoder, set container environment variable LIBVA_DRIVER_NAME=radeonsi
+  hwaccel_args: -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 
+    -hwaccel_output_format yuv420p                                                                # for Intel-based CPUs (<10th Generation) via Quicksync
+
+go2rtc:
+  streams:
+    Front_Door:
+      - rtsp://admin:{FRIGATE_RTSP_PASSWORD}@{FRIGATE_CAM_FRONT_DOOR_IP}/
+    Living_Room:
+      - rtsp://admin:{FRIGATE_RTSP_PASSWORD}@{FRIGATE_CAM_LIVING_ROOM_IP}/
+
+cameras:
+  Front_Door:
+    ffmpeg:
+      inputs:
+        - path: rtsp://admin:{FRIGATE_RTSP_PASSWORD}@{FRIGATE_CAM_FRONT_DOOR_IP}/
+          roles:
+            - detect
+            - record
+            # - rtmp
+    # rtmp:
+    #   enabled: True # <-- RTMP should be disabled if your stream is not H264
+    detect:
+      width: 2560
+      height: 1440
+  # Backyard_Floodlight:
+  #   ffmpeg:
+  #     inputs:
+  #       - path: rtsp://admin:{FRIGATE_RTSP_PASSWORD}@{FRIGATE_CAM_BACKYARD_IP}/
+  #         roles:
+  #           - detect
+  #           - record
+  #           # - rtmp
+  #   # rtmp:
+  #   #   enabled: True # <-- RTMP should be disabled if your stream is not H264
+  #   detect:
+  #     width: 1920
+  #     height: 1080
+  Living_Room:
+    ffmpeg:
+      inputs:
+        - path: rtsp://admin:{FRIGATE_RTSP_PASSWORD}@{FRIGATE_CAM_LIVING_ROOM_IP}/
+          roles:
+            - detect
+            - record
+            # - rtmp
+    # rtmp:
+    #   enabled: True # <-- RTMP should be disabled if your stream is not H264
+    detect:
+      width: 2560
+      height: 1920
+
+motion:
+  threshold: 100
+
+objects:
+  track:
+    - person
+    # - dog
+    - cat
+
+review:
+  alerts:
+    labels:
+      - person
+      - car
+      - speech
+  detections:
+    labels:
+      - cat
+      # - dog
+
+record:
+  enabled: true
+  expire_interval: 60
+  alerts:
+    pre_capture: 10
+    post_capture: 10
+    retain:
+      days: 14
+      mode: active_objects
+  detections:
+    pre_capture: 10
+    post_capture: 10
+    retain:
+      days: 4
+      mode: motion
+
+
+snapshots:
+  enabled: true
+  clean_copy: true
+  timestamp: true
+  bounding_box: true
+  crop: false
+  required_zones: []
+  retain:
+    default: 14
+    objects:
+      # dog: 2
+      cat: 2
+      person: 2
+
+# rtmp:
+#   enabled: False
+
+live:
+  height: 720
+  # 1 is the highest quality, and 31 is the lowest.
+  quality: 8
+
+timestamp_style:
+  # "tl", "tr", "bl", "br"
+  position: tr
+  format: '%m/%d/%Y %H:%M:%S'
+
+logger:
+  logs:
+    frigate.mqtt: error
+version: 0.17-0
+detect:
+  enabled: true

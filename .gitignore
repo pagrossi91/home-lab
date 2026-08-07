@@ -1,64 +1,185 @@
+# =============================================================================
+#  homelab .gitignore  —  DENY BY DEFAULT
+# =============================================================================
+#  Git holds hand-authored configuration only (compose files, YAML, docs).
+#  Runtime state, databases, caches, and every secret live ONLY in the
+#  Time Capsule backup (see backup_script.sh).
+#
+#  Consequence: a NEW service directory is ignored automatically. To publish
+#  a file from one, add an explicit "!" rule below. Never blanket-allow a
+#  service data directory — they all accumulate keys, tokens, and databases.
+# =============================================================================
 
-*.env
-*.db
-*.sample
-*.pem
-*.key
+# ---------- 1. Hard blocks (win over every allow rule below) -----------------
+# Listed first for readability; the re-assertions at the bottom of this file
+# are what actually guarantee they can never be un-ignored.
 
-cloud/immich/ml/*
-cloud/mariadb-nc/*
-cloud/nextcloud/*
-!cloud/nextcloud/config/www/nextcloud/config/config.php
+# ---------- 2. Root: ignore everything, allow the four stacks ----------------
+/*
+!/.gitignore
+!/CLAUDE.md
+!/README.md
+!/cloud/
+!/homeassistant/
+!/media-services/
+!/network-services/
 
-homeassistant/config/secrets.yaml
-homeassistant/config/.storage/
-homeassistant/config/home-assistant.log
-homeassistant/config/home-assistant.log.1
-homeassistant/config/home-assistant.log.fault
-# !homeassistant/config/.storage/lovelace
-# !homeassistant/config/.storage/lovelace_dashboards
-# !homeassistant/config/.storage/lovelace_resources
+# ---------- 3. cloud/ --------------------------------------------------------
+cloud/*
+!cloud/README.md
+!cloud/docker-compose.yml
+!cloud/*.env.example
+!cloud/immich/
+cloud/immich/*
+!cloud/immich/hwaccel.ml.yml
 
-homeassistant/frigate/
-!homeassistant/frigate/config/config.yml
-homeassistant/grafana/*
-homeassistant/influxdb2/*
-homeassistant/mariadb-ha/*
-homeassistant/matter/*
-homeassistant/mosquitto/*
-homeassistant/node-red/*
+# ---------- 4. homeassistant/ ------------------------------------------------
+homeassistant/*
+!homeassistant/README.md
+!homeassistant/docker-compose.yml
+!homeassistant/docker-compose-test.yml
+!homeassistant/*.env.example
+!homeassistant/config/
+
+# DuckDNS/SWAG remote-access stack: template only, never the live .env
+!homeassistant/secure-remote-access/
 homeassistant/secure-remote-access/*
-homeassistant/zwave-config/*
+!homeassistant/secure-remote-access/*.env.example
 
-media-services/plex/*
-media-services/qbittorrent/*
-media-services/bazarr/*
-!media-services/bazarr/config.yaml
-media-services/lidarr/*
-!media-services/lidarr/config.xml
-media-services/prowlarr/*
-!media-services/prowlarr/config.xml
-media-services/sonarr/*
-!media-services/sonarr/config.xml
-media-services/radarr/*
-!media-services/radarr/config.xml
-media-services/recyclarr/*
-!media-services/recyclarr/recyclarr.yml
-media-services/sabnzbd/*
-!media-services/sabnzbd/sabnzbd.ini
-media-services/overseerr/*
-# !media-services/overseerr/settings.json
-media-services/navidrome/*
-media-services/slskd/*
+# Frigate is the one service dir whose config is hand-authored
+!homeassistant/frigate/
+homeassistant/frigate/*
+!homeassistant/frigate/config/
+homeassistant/frigate/config/*
+!homeassistant/frigate/config/config.yml
 
+# --- homeassistant/config: hand-written YAML + blueprints only ---
+homeassistant/config/*
+!homeassistant/config/*.yaml
+!homeassistant/config/blueprints/
+!homeassistant/config/packages/
+!homeassistant/config/themes/
+!homeassistant/config/python_scripts/
+!homeassistant/config/esphome/
+
+# ...minus the parts of the above that must never be published
+homeassistant/config/secrets.yaml
+homeassistant/config/known_devices.yaml
+homeassistant/config/ip_bans.yaml
+homeassistant/config/.storage/
+homeassistant/config/.cloud/
+homeassistant/config/.cache/
+homeassistant/config/backups/
+homeassistant/config/tts/
+homeassistant/config/image/
+homeassistant/config/www/
+homeassistant/config/custom_components/
+homeassistant/config/deps/
+homeassistant/config/.HA_VERSION
+homeassistant/config/.ha_run.lock
+homeassistant/config/home-assistant*.log*
+homeassistant/config/home-assistant_v2.db*
+homeassistant/config/*.fault
+
+# ---------- 5. media-services/ -----------------------------------------------
+# Every *arr/downloader dir holds an API key, a database, or both.
+media-services/*
+!media-services/README.md
+!media-services/docker-compose.yml
+!media-services/*.env.example
+
+# ---------- 6. network-services/ ---------------------------------------------
+network-services/*
+!network-services/README.md
+!network-services/TODO.md
+!network-services/docker-compose.yml
+!network-services/*.env.example
+
+!network-services/dhcp-helper/
+network-services/dhcp-helper/*
+!network-services/dhcp-helper/Dockerfile
+
+!network-services/dnscrypt/
 network-services/dnscrypt/*
 !network-services/dnscrypt/proxy/
-#config/dnscrypt-proxy.toml
-network-services/portainer/*
-network-services/pi-hole/*
-!network-services/pi-hole/etc-pihole/gravity.db
-!network-services/pi-hole/etc-pihole/config_backups/*
-network-services/swag/*
+network-services/dnscrypt/proxy/*
+!network-services/dnscrypt/proxy/config/
+network-services/dnscrypt/proxy/config/*
+!network-services/dnscrypt/proxy/config/dnscrypt-proxy.toml
 
-# WireGuard peer configs (contain private keys!)
-/network-services/wireguard/config/*
+!network-services/pi-hole/
+network-services/pi-hole/*
+!network-services/pi-hole/etc-pihole/
+network-services/pi-hole/etc-pihole/*
+!network-services/pi-hole/*.env.example
+!network-services/pi-hole/etc-pihole/adlists.list
+!network-services/pi-hole/etc-pihole/custom.list
+
+# WireGuard: server + peer private keys. Never anything from here.
+network-services/wireguard/
+
+# =============================================================================
+#  7. Final backstop — re-asserted last so no "!" rule above can override.
+#     Git applies the LAST matching pattern, so these always win.
+# =============================================================================
+
+# Secrets & key material
+*.env
+!*.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.cred
+*.credentials
+id_rsa*
+id_ed25519*
+*_rsa
+secrets.yaml
+secrets.yml
+*secret*.json
+*credentials*.json
+authorized_keys
+known_hosts
+
+# Databases & their sidecars
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.sql
+*.rdb
+*.mdb
+
+# Archives & app backups (bulk; belongs in Time Capsule, not git)
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.7z
+*.bak
+Backups/
+backups/
+
+# Logs, caches, runtime cruft
+*.log
+*.log.*
+logs/
+log/
+Logs/
+*.pid
+*.lock
+!package-lock.json
+*.pyc
+__pycache__/
+Sentry/
+MediaCover/
+transcode/
+.DS_Store
+Thumbs.db
+*.swp
+*~

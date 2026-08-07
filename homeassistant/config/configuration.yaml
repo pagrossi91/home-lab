@@ -10,10 +10,10 @@ http:
     - 172.21.0.0/24 # Docker home assistant network
     - !secret rpi3_IP
 
-# Enable forwarding to DuckDNS subdomain
-duckdns:
-  domain: !secret duckdns_domain
-  access_token: !secret duckdns_token
+# # Enable forwarding to DuckDNS subdomain
+# duckdns:
+#   domain: !secret duckdns_domain
+#   access_token: !secret duckdns_token
 
 
 # Configure a default setup of Home Assistant (frontend, api, etc)
@@ -53,7 +53,7 @@ scene: !include scenes.yaml
 
 # Adds zwave and zigbee functionality from GoControl Linear HUSBZB-1 USB stick
 # zwave:
-  # usb_path: /zwaveusbstick
+#   usb_path: /zwaveusbstick
 zha:
   # usb_path: /zigbeeusbstick
   database_path: /config/zigbee.db
@@ -69,14 +69,14 @@ recorder:
   db_url: !secret db_url
 
 # # Use influxdb and grafana for visualizations
-influxdb:
-  api_version: 2
-  host: influxdb
-  ssl: false
-  port: 8086
-  token: !secret influx_token
-  organization: homelab
-  bucket: homeassistant
+# influxdb: # Configuring influxdb in configuration.yaml is being deprecated
+#   api_version: 2
+#   host: influxdb
+#   ssl: false
+#   port: 8086
+#   token: !secret influx_token
+#   organization: homelab
+#   bucket: homeassistant
 
 # # Monitor qBittorrent
 # sensor:
