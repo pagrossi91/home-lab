@@ -1,14 +1,14 @@
-# Set Home Assistant Port
-http:
-  server_port: 8123
-  ip_ban_enabled: true # blocks unathorized ips from accessing HA
-  login_attempts_threshold: 5 # number of attempts before ip is banned
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - !secret server_IP # Local LAN
-    - 172.18.0.0/24 # Docker nginx network
-    - 172.21.0.0/24 # Docker home assistant network
-    - !secret rpi3_IP
+# # Set Home Assistant Port
+# http:
+#   server_port: 8123
+#   ip_ban_enabled: true # blocks unathorized ips from accessing HA
+#   login_attempts_threshold: 5 # number of attempts before ip is banned
+#   use_x_forwarded_for: true
+#   trusted_proxies:
+#     - !secret server_IP # Local LAN
+#     - 172.18.0.0/24 # Docker nginx network
+#     - 172.21.0.0/24 # Docker home assistant network
+#     - !secret rpi3_IP
 
 # # Enable forwarding to DuckDNS subdomain
 # duckdns:
