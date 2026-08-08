@@ -325,7 +325,7 @@ services:
   #   restart: unless-stopped
 
   recyclarr: # Sync Sonarr and Radarr to TRaSH Guide profiles
-    image: ghcr.io/recyclarr/recyclarr
+    image: ghcr.io/recyclarr/recyclarr:8
     container_name: recyclarr
     user: ${LOCAL_USER}:${LOCAL_USER}
     networks:
@@ -352,9 +352,14 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/lidarr/paul:/config
-      - ${ARRAY_DIR}/servarr_data/media/music/paul:/data
-      - ${ARRAY_DIR}/servarr_data/media/music/shared:/shared
-      - ${ARRAY_DIR}/servarr_data/soulseek/downloads:/downloads
+      # Single mount of the whole tree, as sonarr/radarr do. Separate binds for
+      # library and downloads are distinct mount points to the kernel, so
+      # rename(2)/link(2) across them return EXDEV -- no atomic moves, no
+      # hardlinks. One mount also makes lidarr's paths match sabnzbd's, so no
+      # remote path mapping is needed.
+      #   root folders:  /data/media/music/paul, /data/media/music/shared
+      #   sab downloads: /data/usenet/music
+      - ${ARRAY_DIR}/servarr_data/:/data
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -364,7 +369,7 @@ services:
     depends_on:
       - prowlarr
       - qbittorrent
-      - slskd
+      # - slskd
 
   lidarr-lisa: # Music
     container_name: lidarr-lisa
@@ -378,9 +383,7 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/lidarr/lisa:/config
-      - ${ARRAY_DIR}/servarr_data/media/music/lisa:/data
-      - ${ARRAY_DIR}/servarr_data/media/music/shared:/shared
-      - ${ARRAY_DIR}/servarr_data/soulseek/downloads:/downloads
+      - ${ARRAY_DIR}/servarr_data/:/data
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -390,7 +393,7 @@ services:
     depends_on:
       - prowlarr
       - qbittorrent
-      - slskd
+      # - slskd
 
   navidrome:
     container_name: navidrome
