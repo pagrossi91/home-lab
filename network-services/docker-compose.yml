@@ -190,6 +190,7 @@ services:
     networks:
       - nginx_network
     environment:
+      DOCKER_API_VERSION: 1.49
       TZ: ${TZ}
       WATCHTOWER_CLEANUP: 'true'
       # send email notification of update
