@@ -39,7 +39,10 @@ tts:
   - platform: google_translate
 
 group: !include groups.yaml
-automation: !include automations.yaml
+# The UI automation editor owns automations.yaml and cannot parse !secret there.
+# Automations that need a secret go in manual_automations.yaml (read-only in UI).
+automation ui: !include automations.yaml
+automation manual: !include manual_automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
 

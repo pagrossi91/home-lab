@@ -1,0 +1,68 @@
+# Manually-managed automations.
+#
+# These live outside automations.yaml because they reference !secret, and the
+# Home Assistant UI automation editor cannot read a file containing !secret --
+# components/config/view.py loads automations.yaml with secrets disabled so it
+# can round-trip writes, so any !secret tag there returns HTTP 500 for the whole
+# automations panel. Automations loaded via "automation manual:" go through the
+# normal config path, where !secret resolves correctly.
+#
+# Trade-off: automations in this file are read-only in the UI. Edit them here.
+
+- id: '1743966695398'
+  alias: Front Door Motion Notification
+  description: ''
+  use_blueprint:
+    path: SgtBatten/Stable.yaml
+    input:
+      presence_filter: []
+      camera:
+      - camera.front_door
+      notify_device: cd012e2e728ee85536bdeb80999436eb
+      message: A Person was detected at the Front Door.
+      title: Front Door
+      critical: 'false'
+      video: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
+      final_update: true
+      base_url: !secret ha_external_url
+      debug: true
+      ios_live_view: camera.front_doorbell_main
+      zones: []
+      zone_filter: false
+      url_1: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
+      tap_action: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
+      master_condition: []
+      review_severity:
+      - detection
+      url_2: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
+        | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.'' ~ camera,
+        ''access_token'')}}'
+      redacted: false
+- id: '1743968789389'
+  alias: Living Room Motion Notification
+  description: ''
+  use_blueprint:
+    path: SgtBatten/Stable.yaml
+    input:
+      presence_filter:
+      - device_tracker.iphone
+      - device_tracker.lisa_grossis_iphone
+      camera:
+      - camera.living_room
+      notify_device: cd012e2e728ee85536bdeb80999436eb
+      message: Motion detected in the Living Room
+      title: Living Room
+      critical: 'false'
+      video: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
+      final_update: true
+      base_url: !secret ha_external_url
+      debug: false
+      ios_live_view: camera.living_room_camera_main
+      zones:
+      - porch
+      zone_filter: false
+      url_1: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
+      tap_action: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
+      review_severity:
+      - alert
+      redacted: false

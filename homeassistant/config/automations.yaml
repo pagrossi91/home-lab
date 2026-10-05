@@ -188,54 +188,6 @@
       color_temp_kelvin: 4000
       brightness_pct: 100
   mode: single
-- id: '1721348824948'
-  alias: Master Bedroom - Adjust color temp for daytime
-  description: ''
-  triggers:
-  - entity_id:
-    - light.master_bedroom
-    from: 'off'
-    to: 'on'
-    trigger: state
-  conditions:
-  - condition: sun
-    before: sunset
-    before_offset: -00:30:00
-    after: sunrise
-    after_offset: 00:30:00
-  actions:
-  - metadata: {}
-    data:
-      brightness_pct: 100
-      kelvin: 4000
-    target:
-      entity_id: light.master_bedroom
-    action: light.turn_on
-  mode: single
-- id: '1721348927268'
-  alias: Master Bedroom - Adjust color temp for evening
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - light.master_bedroom
-    from: 'off'
-    to: 'on'
-  condition:
-  - condition: sun
-    before: sunrise
-    before_offset: 00:30:00
-    after: sunset
-    after_offset: -00:30:00
-  action:
-  - service: light.turn_on
-    metadata: {}
-    data:
-      kelvin: 3000
-      brightness_pct: 50
-    target:
-      entity_id: light.master_bedroom
-  mode: single
 - id: '1733093505530'
   alias: Christmas lights on
   description: ''
@@ -312,63 +264,6 @@
     target:
       entity_id: switch.living_room_recordings
   mode: single
-- id: '1743966695398'
-  alias: Front Door Motion Notification
-  description: ''
-  use_blueprint:
-    path: SgtBatten/Stable.yaml
-    input:
-      presence_filter: []
-      camera:
-      - camera.front_door
-      notify_device: cd012e2e728ee85536bdeb80999436eb
-      message: A Person was detected at the Front Door.
-      title: Front Door
-      critical: 'false'
-      video: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
-      final_update: true
-      base_url: !secret ha_external_url
-      debug: true
-      ios_live_view: camera.front_doorbell_main
-      zones: []
-      zone_filter: false
-      url_1: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
-      tap_action: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
-      master_condition: []
-      review_severity:
-      - detection
-      url_2: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
-        | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.'' ~ camera,
-        ''access_token'')}}'
-      redacted: false
-- id: '1743968789389'
-  alias: Living Room Motion Notification
-  description: ''
-  use_blueprint:
-    path: SgtBatten/Stable.yaml
-    input:
-      presence_filter:
-      - device_tracker.iphone
-      - device_tracker.lisa_grossis_iphone
-      camera:
-      - camera.living_room
-      notify_device: cd012e2e728ee85536bdeb80999436eb
-      message: Motion detected in the Living Room
-      title: Living Room
-      critical: 'false'
-      video: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
-      final_update: true
-      base_url: !secret ha_external_url
-      debug: false
-      ios_live_view: camera.living_room_camera_main
-      zones:
-      - porch
-      zone_filter: false
-      url_1: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
-      tap_action: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
-      review_severity:
-      - alert
-      redacted: false
 - id: '1773799823339'
   alias: Front Door Lights dim after sunset
   description: ''
@@ -521,4 +416,34 @@
     device_id: 44e66bdc2511ff8f6efcd69beb6f074b
     entity_id: 6946123c5c1a6aab741b9297cc27648e
     domain: switch
+  mode: single
+- id: '1786520340329'
+  alias: Lights on in morning (travel)
+  description: ''
+  triggers:
+  - trigger: time
+    at: 06:30:00
+  conditions: []
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    target:
+      entity_id: light.kitchen_island
+    data:
+      color_temp_kelvin: 4000
+      brightness_pct: 100
+  mode: single
+- id: '1786520491611'
+  alias: Lights off in morning (travel)
+  description: ''
+  triggers:
+  - trigger: time
+    at: 08:00:00
+  conditions: []
+  actions:
+  - action: light.turn_off
+    metadata: {}
+    target:
+      entity_id: light.kitchen_island
+    data: {}
   mode: single

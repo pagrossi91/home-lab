@@ -45,13 +45,31 @@ place to forget to update.
 `secrets.yaml` (gitignored) referenced via `!secret`:
 
 ```yaml
-# automations.yaml  (tracked)
+# manual_automations.yaml  (tracked)
 base_url: !secret ha_external_url
 ```
 
-> ⚠️ Editing an automation through the HA UI resolves `!secret` back to the
-> literal value and rewrites `automations.yaml`. After any UI automation edit,
-> re-check `automations.yaml` for leaked hostnames before committing.
+> ⚠️ **Never put `!secret` in a UI-managed file** — `automations.yaml`,
+> `scripts.yaml`, or `scenes.yaml`. The HA config editor reads those with
+> secrets *disabled* (`components/config/view.py` → `load_yaml` without a
+> secrets object) so it can round-trip its own writes. A single `!secret` tag
+> there makes the endpoint raise `Secrets not supported in this YAML file`, and
+> the whole automations panel returns **HTTP 500** — while the automations
+> themselves still load and run, so the failure looks unrelated to YAML.
+
+Automations that need a secret go in a manually-managed file instead, wired up
+as a second labelled automation set:
+
+```yaml
+# configuration.yaml  (tracked)
+automation ui: !include automations.yaml            # UI editor owns this
+automation manual: !include manual_automations.yaml # !secret works here
+```
+
+Manual automations load through the normal config path, where `!secret`
+resolves. The trade-off is that they are read-only in the UI — edit them in the
+file. Keep each automation's `id:` when moving it between files; the entity
+registry is keyed on `id`, so the `entity_id` survives the move.
 
 **3. Obfuscate.** Only when the file supports neither — e.g. plain TOML that has
 no substitution. Replace with a placeholder and say where the real value lives:

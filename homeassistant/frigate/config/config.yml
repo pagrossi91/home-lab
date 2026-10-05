@@ -33,7 +33,8 @@ cameras:
   Front_Door:
     ffmpeg:
       inputs:
-        - path: rtsp://admin:{FRIGATE_RTSP_PASSWORD}@{FRIGATE_CAM_FRONT_DOOR_IP}/
+        - path: 
+            rtsp://admin:{FRIGATE_RTSP_PASSWORD}@{FRIGATE_CAM_FRONT_DOOR_IP}/
           roles:
             - detect
             - record
@@ -59,7 +60,8 @@ cameras:
   Living_Room:
     ffmpeg:
       inputs:
-        - path: rtsp://admin:{FRIGATE_RTSP_PASSWORD}@{FRIGATE_CAM_LIVING_ROOM_IP}/
+        - path: 
+            rtsp://admin:{FRIGATE_RTSP_PASSWORD}@{FRIGATE_CAM_LIVING_ROOM_IP}/
           roles:
             - detect
             - record
@@ -109,7 +111,6 @@ record:
 
 snapshots:
   enabled: true
-  clean_copy: true
   timestamp: true
   bounding_box: true
   crop: false
@@ -137,6 +138,6 @@ timestamp_style:
 logger:
   logs:
     frigate.mqtt: error
-version: 0.17-0
+version: 0.18-0
 detect:
   enabled: true
