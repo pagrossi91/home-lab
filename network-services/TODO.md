@@ -14,51 +14,8 @@ The gap as written didn't exist: over IPv4 the router forwards only 443 and the 
 
 ### Medium Priority
 
-#### 1. Add Security Headers to SWAG Proxy Configs
-**Purpose**: Implement browser-side security protections
-
-**Security Impact**:
-- **HSTS (Strict-Transport-Security)**: Forces browsers to use HTTPS only, preventing SSL stripping attacks and accidental HTTP access
-- **X-Content-Type-Options**: Prevents MIME type confusion attacks where browsers incorrectly interpret file types, blocking XSS via file uploads
-- **X-Frame-Options**: Prevents clickjacking attacks by blocking your site from being embedded in malicious iframes
-- **X-XSS-Protection**: Enables browser's built-in XSS filtering (legacy browsers), provides defense against reflected XSS attacks
-- **Content-Security-Policy**: Prevents code injection by controlling which resources (scripts, styles, images) browsers can load
-- **Referrer-Policy**: Controls what referrer information is sent to external sites, reducing information leakage about your internal URLs
-
-**Attack Scenarios Prevented**:
-- **SSL Downgrade**: Attacker forces HTTP connection → HSTS prevents this
-- **Malicious File Upload**: User uploads "image" containing script → X-Content-Type-Options blocks execution
-- **Clickjacking**: Malicious site embeds your admin panel in invisible iframe → X-Frame-Options blocks embedding
-- **Script Injection**: Attacker injects malicious JavaScript → CSP blocks unauthorized script execution
-
-**Implementation**: Update existing proxy configs in `./swag/config/nginx/proxy-confs/`
-
-Example for any `*.subdomain.conf` file:
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name servicename.*;
-
-    # Security headers
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" always;
-
-    include /config/nginx/ssl.conf;
-
-    location / {
-        include /config/nginx/proxy.conf;
-        resolver 127.0.0.11 valid=30s;
-        set $upstream_app servicename;
-        set $upstream_port 80;
-        set $upstream_proto http;
-        proxy_pass $upstream_proto://$upstream_app:$upstream_port;
-    }
-}
-```
+#### ~~1. Add Security Headers to SWAG Proxy Configs~~ ✅ Done (2026-10-05)
+HSTS (two years, `includeSubDomains`, no preload) is set in `ssl.conf`, so it covers every service. `nosniff` and `X-Frame-Options: SAMEORIGIN` are added through `map` fallbacks only where an app sends none, so apps that set their own keep their values. The suggested generic CSP (it would break Plex, Immich and Nextcloud) and `X-XSS-Protection` (obsolete) were deliberately left out. Nextcloud's proxy-conf no longer hides its own headers. The stale `overseerr` vhost (container long gone) was removed. See **README → SWAG Reverse Proxy → Security Headers**.
 
 #### 2. Implement Rate Limiting
 **Purpose**: Prevent brute force and DoS attacks

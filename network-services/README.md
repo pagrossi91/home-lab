@@ -863,6 +863,64 @@ The Pi runs the same `docker-compose.yml`, so it drops 444 and 5053 on its next 
 
 Before **adding** a `ports:` entry, ask whether the consumer is a container. If it is, put both on a shared network and use the container name. Before **removing** one, find its consumers: grep Home Assistant's `.storage/core.config_entries` and `secrets.yaml`, and each app's own config, for `<LAN_IP>:<port>`. Anything connecting by LAN IP must be repointed first, or it breaks when the port goes away.
 
+#### Security Headers
+
+Every proxy-conf includes `ssl.conf`, so headers set there apply to every service — including ones added later — with no per-service step.
+
+**HSTS** is on for the whole domain:
+
+```nginx
+# ssl.conf
+add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+```
+
+It tells a browser "for the next two years, only ever use HTTPS for this domain and every subdomain." That closes the gap on an untrusted network (café, hotel, a spoofed hotspot): typing `nextcloud.yourdomain.duckdns.org` without `https://` normally sends a plain-HTTP request first, and whoever runs that network can answer it with a fake login page or silently relay the session. With HSTS, after one visit the browser never sends that request.
+
+What to know with it on:
+- **Certificate errors can't be clicked through.** If the SWAG cert breaks (e.g. the restore symlink issue under Troubleshooting), browsers refuse the site outright until it's fixed. The LAN IP:port fallbacks (`:9000`, `:81`, `:8123`) are unaffected — HSTS applies to the domain name, not IPs.
+- **Every subdomain must be HTTPS** (`includeSubDomains`). Already true: everything under the domain goes through SWAG on the wildcard cert.
+- **No `preload`.** Preloading ships the domain inside browsers and takes months to undo. It only adds first-visit protection, which isn't worth that here.
+- **To back out**, set `max-age=0`. Each browser drops the rule on its next successful HTTPS visit; a browser that never returns keeps it until the original two years lapse. It can also be cleared per browser (Chrome: `chrome://net-internals/#hsts`).
+- **Doesn't cover** the first visit from a new browser, the mobile apps (they use their configured `https://` URLs anyway), or access by IP.
+
+**Fallback headers** fill in only where an app sends none of its own:
+
+```nginx
+# site-confs/security-headers.conf — http level (nginx.conf includes site-confs/*.conf)
+map $upstream_http_x_content_type_options $xcto_default { "" "nosniff";    default ""; }
+map $upstream_http_x_frame_options        $xfo_default  { "" "SAMEORIGIN"; default ""; }
+
+# ssl.conf
+add_header X-Content-Type-Options $xcto_default always;
+add_header X-Frame-Options        $xfo_default  always;
+```
+
+- `X-Content-Type-Options: nosniff` — the browser treats a file as the type the server declares, so an "image" upload can't be run as a script.
+- `X-Frame-Options: SAMEORIGIN` — other sites can't load these pages inside an invisible frame and trick a logged-in user into clicking (clickjacking). Note each subdomain is its own origin, so this also blocks e.g. a Home Assistant iframe card showing `immich.<domain>`; none exist today.
+
+An empty map value makes `add_header` send nothing, so apps with their own value (Home Assistant, Navidrome's stricter `DENY`, Nextcloud) pass through untouched — no duplicate or conflicting headers.
+
+Deliberately **not** set:
+- **A generic `Content-Security-Policy`** — every app needs a different one (Plex loads from plex.tv, Immich uses `blob:` media), and Nextcloud already sends a tuned policy. Browsers enforce *both* when two are present, so a generic one breaks things.
+- **`X-XSS-Protection`** — ignored by current browsers, and the old filter was itself exploitable.
+
+> ⚠️ **nginx inheritance trap.** A `location` block containing *any* `add_header` stops inheriting *all* of the server-level ones above — HSTS included. If a proxy-conf ever needs its own header, add it to `ssl.conf` instead, or repeat the HSTS line in that location.
+
+> ⚠️ **Nextcloud.** SWAG's Nextcloud sample `proxy_hide_header`s Nextcloud's own security headers, expecting `ssl.conf` to replace them. The fallback maps see that Nextcloud *did* send them and add nothing, so Nextcloud ended up with none. `nextcloud.subdomain.conf` keeps only `proxy_hide_header X-XSS-Protection;`. Check with `docker exec nextcloud occ setupchecks` → "HTTP headers ✓".
+
+When a SWAG update refreshes `ssl.conf.sample`, merge the changes into `ssl.conf` and keep these lines.
+
+Verify (from the LAN; the admin vhosts drop non-LAN sources):
+
+```bash
+for h in homeassistant immich nextcloud plex seerr; do
+  echo "== $h"; curl -sk -o /dev/null -D - --resolve $h.${DOMAIN}:443:${SERVER_IP} https://$h.${DOMAIN}/ \
+    | grep -iE '^(strict-transport|x-frame|x-content-type)'
+done
+```
+
+Expect exactly one of each header per service.
+
 #### Troubleshooting
 **Issue**: Certificate generation fails
 ```bash
