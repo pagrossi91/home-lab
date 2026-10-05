@@ -99,54 +99,32 @@ In most setups, this path is wherever you want. If you clone this step is alread
 
 ### Environment Configuration
 
-Create `.env` file with your specific values. These keep sensitive variables like passwords out of your `docker-compose.yml` and in a separate file that `docker-compose.yml` can reference as a `${VARIABLE}`. Note the APPDATA_DIR environment variable. This is the relative path to persistent storage. Depending on your OS environment, you'll need to pick one. Or customize it to your needs.
+Copy the tracked template and fill it in:
 
 ```bash
-# User and timezone settings
-LOCAL_USER=1000
-TZ=America/New_York
-APPDATA_DIR=. # This for most OS setups, excluding Unraid
-# APPDATA_DIR=/mnt/user/appdata/network-services # This is for Unraid setups
-
-# Pi-hole admin interface password
-PIHOLE_WEBPASSWORD=your_secure_password_here
-
-# Pi-hole sync
-PIHOLE_1_URL=http://192.168.X.X:81
-PIHOLE_1_PWD=${PIHOLE_WEBPASSWORD}
-PIHOLE_2_URL=http://192.168.X.X:81
-PIHOLE_2_PWD=${PIHOLE_1_PWD}
-
-# Static IP Addresses on NGINX Docker Network
-NGINX_NETWORK_SUBNET=172.XX.0.0/16
-NGINX_NETWORK_GATEWAY=172.XX.0.1
-PIHOLE_STATIC_IP=172.XX.0.10
-DNSCRYPTSERVER_STATIC_IP=172.XX.0.11
-DNSCRYPTPROXY_STATIC_IP=172.XX.0.12
-SWAG_STATIC_IP=172.XX.0.99
-
-# DuckDNS configuration
-DUCKDNS=your_subdomain_here
-DUCKDNS_TOKEN=your_duckdns_token_here
-DOMAIN=${DUCKDNS}.duckdns.org
-
-# SSL certificate email (for Let's Encrypt/ZeroSSL)
-SSL_EMAIL=your_email@domain.com
-
-# Watchtower email notifications
-WATCHTOWER_NOTIFICATION_EMAIL_FROM=notifications@yourdomain.com
-WATCHTOWER_NOTIFICATION_EMAIL_TO=admin@yourdomain.com
-WATCHTOWER_NOTIFICATION_EMAIL_SERVER=smtp.gmail.com
-WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PORT=587
-WATCHTOWER_NOTIFICATION_EMAIL_SERVER_USER=your_smtp_user
-WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD=your_app_password
+cp .env.example .env
 ```
+
+`.env.example` is the **only** template — it has every key the compose file needs, in order, with comments, and is kept in parity with the live `.env` (see the repo's `CLAUDE.md`). It is deliberately not duplicated here; a copy in this README drifted and was missing the `WG_*` keys, without which `docker compose` can't create the WireGuard network.
+
+`.env` keeps sensitive values like passwords out of `docker-compose.yml`, which references them as `${VARIABLE}`. Values to change:
+- **Credentials** — anything `changeme-*`.
+- **LAN addresses** — anything `192.168.X.X`.
+- **Your domain and email** — `DUCKDNS`, `SSL_EMAIL`, the Watchtower addresses.
+- **`APPDATA_DIR`** — the path to persistent storage: `.` for most setups, `/mnt/user/appdata/network-services` on Unraid.
+
+The Docker bridge addresses (`172.18.x`, `172.31.x`) are real values, not placeholders — keep them unless they collide with an existing network.
 
 **Critical Environment Variables Explained**:
 - `LOCAL_USER=1000`: Standard non-root user ID for containers. **Why**: If this doesn't match your host user ID, you'll get permission errors when containers try to access mounted volumes. Without this, configuration files won't be accessible and services will fail to start.
 - `DUCKDNS`: Your DuckDNS subdomain (without .duckdns.org). **Why**: If this is incorrect, SSL certificate generation will fail because SWAG won't be able to complete DNS challenges, leaving you without HTTPS access.
 - `DOMAIN=${DUCKDNS}.duckdns.org`: Full domain for SSL certificates. **Why**: This must exactly match your DuckDNS domain, or certificate requests will be rejected by the certificate authority.
 - `SSL_EMAIL`: Required for ZeroSSL certificate provisioning. **Why**: Without this, certificate generation will fail with "Email address required" errors, and you'll fall back to Let's Encrypt with stricter rate limits.
+- `SERVER_IP`: This host's LAN IP. Not used by the compose file; the verification commands in this README use it (`--resolve <name>:443:${SERVER_IP}`) to test SWAG from a LAN source, which the admin vhosts require.
+- `PIHOLE_UNRAID` / `PIHOLE_RPI3`: LAN IPs of the two Pi-holes. **Why**: WireGuard hands both to VPN clients as DNS (`PEERDNS`) and uses them for its own lookups, so DNS keeps working over the VPN if either host is down.
+- `INTERNAL_SUBNET`: The WireGuard peers' tunnel subnet. These addresses never reach other services — the WireGuard container `MASQUERADE`s them (see Access Restrictions).
+- `WG_NETWORK_SUBNET` / `WG_NETWORK_GATEWAY` / `WG_STATIC_IP`: The `wg_network` Docker bridge the WireGuard container lives on. **Why**: Required; without them the network can't be created and the stack won't start.
+- `DHCP_START` / `DHCP_END` / `DHCP_ROUTER_IP`: Only used if Pi-hole's DHCP server is enabled (commented out in the compose file; the router does DHCP).
 
 ## 📋 Service Configuration and Deployment
 
@@ -580,7 +558,7 @@ docker compose up -d pihole
 5. **Verify DNS and blocking functionality**: Conduct the troubleshooting steps below to verify DNS resolution,  routing to DNSCrypt, and ad blocking are working. If they are, proceed to the next step. Else, search logs relevant to the troubleshooting step that failed.
 6. **Router DNS Configuration**
     - Primary DNS: Set to your Docker host IP
-      > **Note**: This should be `192.168.XX.XXX` and not the internal docker IP address set in the `.env` file, which would look like `172.XX.0.10`.
+      > **Note**: This should be `192.168.XX.XXX` and not the internal docker IP address set in the `.env` file, which would look like `172.18.0.10`.
     - Secondary DNS: Set to 1.1.1.1 or 8.8.8.8 (backup)
     - DHCP settings: Ensure router continues handling DHCP
   
@@ -781,7 +759,7 @@ docker compose up -d swag
 
     **Why container name resolution**:
     - **Flexibility**: Match the `$upstream_app` variable to the container name. Container IP addresses can change (unless you prescribe the container IP in `docker-compose.yml`); names are consistent. 
-      > This doesn't always work with the container name for some undetermined reason, so prescribed container IP addresses can be an effective fallback option. This IP would be the Docker network IP address (e.g., `172.XX.0.XX`).
+      > This doesn't always work with the container name for some undetermined reason, so prescribed container IP addresses can be an effective fallback option. This IP would be the Docker network IP address (e.g., `172.18.0.XX`).
     - **Docker DNS**: Docker provides automatic name resolution within networks
     - **Maintenance**: No need to update proxy configs when IPs change
     - **Without this**: Hardcoded IPs break when containers restart with different addresses (unless you prescribe the container IP in `docker-compose.yml`)
@@ -1175,8 +1153,8 @@ docker logs watchtower
 
 ### Custom Bridge Network: nginx_network
 
-**Subnet**: `172.XX.0.0/16`  
-**Gateway**: `172.XX.0.1`
+**Subnet**: `172.18.0.0/16`  
+**Gateway**: `172.18.0.1`
 
 **Why Custom Network is Essential**:
 - **Container Communication**: Enables automatic DNS resolution between containers
@@ -1187,10 +1165,10 @@ docker logs watchtower
 ### Static IP Address Strategy
 
 **IP Assignments**:
-- **Pi-hole (`172.XX.0.10`)**: Central DNS role, easy to remember
-- **DNSCrypt Server (`172.XX.0.11`)**: Sequential numbering
-- **DNSCrypt Proxy (`172.XX.0.12`)**: Upstream relationship to Pi-hole
-- **SWAG (`172.XX.0.99`)**: High number for "gateway" function
+- **Pi-hole (`172.18.0.10`)**: Central DNS role, easy to remember
+- **DNSCrypt Server (`172.18.0.11`)**: Sequential numbering
+- **DNSCrypt Proxy (`172.18.0.12`)**: Upstream relationship to Pi-hole
+- **SWAG (`172.18.0.99`)**: High number for "gateway" function
 
 **Benefits**:
 - Configuration persistence across container restarts
@@ -1204,9 +1182,9 @@ Client Request
      ↓
 Router (configured to use Pi-hole)
      ↓
-Pi-hole (172.XX.0.10:53) - Ad/malware filtering + caching
+Pi-hole (172.18.0.10:53) - Ad/malware filtering + caching
      ↓
-DNSCrypt Proxy (172.XX.0.12:5053) - Query encryption
+DNSCrypt Proxy (172.18.0.12:5053) - Query encryption
      ↓
 Anonymous Relay (geographic anonymization)
      ↓
@@ -1264,7 +1242,7 @@ docker compose ps | grep -E "(Up|healthy)" > /dev/null && echo "✅ Containers h
 The output should be similar to the following:
 
 ```bash
-=== DNS Security Audit (Pi-hole: 172.XX.0.10) ===
+=== DNS Security Audit (Pi-hole: 172.18.0.10) ===
 1. Checking for DNS leaks...
 tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
 listening on enp3s0, link-type EN10MB (Ethernet), snapshot length 262144 bytes

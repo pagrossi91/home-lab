@@ -229,7 +229,7 @@ services:
       vpn:
         ipv4_address: ${SEERR_STATIC_IP}
       nginx_network: # For remote access
-        ipv4_address: 172.18.0.101 # Static Docker Overseerr IP address on nginx_network
+        ipv4_address: 172.18.0.101 # Static Docker Seerr IP address on nginx_network
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}

@@ -127,7 +127,7 @@ services:
   #   build: ./dhcp-helper
   #   restart: unless-stopped
   #   network_mode: host # Resides on host network so it can listen for DHCP discovery requests from UDP port 67
-  #   command: -s 172.30.0.2 # Forwards to Internal Docker Address of pihole
+  #   command: -s ${PIHOLE_STATIC_IP} # Forwards to Internal Docker Address of pihole
   #   labels:
   #     - "com.centurylinklabs.watchtower.enable=false" # excludes container from watchtower update
   #   cap_add:
