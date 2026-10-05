@@ -82,8 +82,7 @@ services:
       - "53:53/udp"
       # - "67:67/udp" # Necessary when DHCP on its own but not necessary when used in conjunction with dhcp-helper. dhcp-helper is set to listen on UDP port 67 for DHCP requests instead which are then forwarded to Pi-Hole
       - "81:80/tcp"
-      # Default HTTPS Port. FTL will generate a self-signed certificate
-      - "444:443/tcp"
+      # 443 (self-signed HTTPS) not published: SWAG terminates TLS and reaches pihole:80 directly
     environment:
       FTLCONF_webserver_api_password: ${PIHOLE_WEBPASSWORD}
       FTLCONF_dns_upstreams:  ${DNSCRYPTPROXY_STATIC_IP}#5053  # 1.1.1.1;1.0.0.1 #;2606:4700:4700::1111;2606:4700:4700::1001 # Cloudfare DNS; IPv4 and IPv6
@@ -167,9 +166,7 @@ services:
     container_name: dnscrypt-proxy
     image: klutchell/dnscrypt-proxy:latest
     user: "${LOCAL_USER}:${LOCAL_USER}"
-    ports:
-      - "5053:5053/tcp"
-      - "5053:5053/udp"
+    # No host port: Pi-hole queries it over nginx_network. Publishing 5053 would give LAN clients an unfiltered resolver
     networks:
       nginx_network:
         ipv4_address: ${DNSCRYPTPROXY_STATIC_IP}

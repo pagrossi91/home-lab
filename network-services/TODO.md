@@ -9,37 +9,8 @@ This file tracks pending improvements, security hardening, and configuration tas
 #### ~~1. Remove External Pi-hole Admin Access~~ ✅ Done (2026-10-05)
 Pi-hole admin — along with Portainer and the Unraid web UI — is now restricted to LAN/WireGuard at the SWAG level. Each proxy-conf starts with an `if ($remote_addr !~ ...) { return 444; }` rule, so internet clients get a silently dropped connection while the same `https://<service>.<subdomain>.duckdns.org` URLs keep working at home and over VPN. Unknown hostnames are refused at the TLS handshake (`ssl_reject_handshake on` in `default.conf`). See **README → SWAG Reverse Proxy → Access Restrictions**.
 
-#### 2. Implement Local Access Restrictions
-**Purpose**: Restrict Pi-hole admin to local network only
-
-**Security Impact**:
-- **Attack Surface Reduction**: Eliminates direct internet access to Pi-hole, forcing attackers to first compromise local network
-- **Insider Threat Mitigation**: Restricts access to physically present or VPN-connected users only
-- **Brute Force Prevention**: External automated password attacks become impossible
-- **Network Boundary Enforcement**: Aligns with network security best practice of internal-only admin interfaces
-- **Audit Trail**: Local access attempts are easier to monitor and correlate with physical presence
-
-```bash
-# Method 1: Firewall-based (recommended)
-sudo ufw allow from 192.168.0.0/16 to any port 81 comment 'Pi-hole admin - local only'
-sudo ufw deny 81 comment 'Block external Pi-hole direct access'
-
-# Method 2: Docker port binding (more restrictive)
-# In docker-compose.yml, change Pi-hole ports to:
-ports:
-  - "192.168.50.X:81:80/tcp"    # Replace X with your server's IP
-  - "192.168.50.X:444:443/tcp"  # HTTPS interface
-```
-
-**Verification**:
-```bash
-# Test local access works
-curl -I http://192.168.50.X:81/admin
-
-# Test external access blocked
-nmap -p 81 your-external-ip
-# Should show: 81/tcp filtered
-```
+#### ~~2. Implement Local Access Restrictions~~ ✅ Done (2026-10-05)
+The gap as written didn't exist: over IPv4 the router forwards only 443 and the WireGuard port, so Pi-hole's port 81 was never reachable from the internet. The real exposure was IPv6 — Docker publishes every port on `[::]` and the server has a public IPv6 address — and the router's IPv6 firewall was confirmed to drop inbound connections. The suggested `ufw` method doesn't apply (Unraid has no `ufw`, and Docker bypasses it). Instead, host-published ports that only other containers used were removed: Pi-hole 444, dnscrypt-proxy 5053, MariaDB 3306/3307, Mosquitto 9001, Nextcloud 8079. See **README → SWAG Reverse Proxy → Host Port Exposure**.
 
 ### Medium Priority
 
@@ -367,6 +338,4 @@ chmod +x security-tests.sh
 2. **MEDIUM**: Advanced security features, high availability setup
 3. **LOW**: Enhanced monitoring, automated backups
 
-**Estimated Time**: 3-4 hours for high priority items# Homelab Network Stack - TODO
-
-This file tracks pending improvements, security hardening, and configuration tasks for the network services stack.
+**Estimated Time**: 3-4 hours for high priority items

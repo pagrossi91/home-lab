@@ -163,7 +163,6 @@ The Docker Compose for Mosquitto is added to the Home Assistant docker-compose.y
         - ./mosquitto:/mosquitto
         ports:
         - 1883:1883
-        - 9001:9001
 
 In the Home Assistant directory, add a new folder called `mosquitto` and create `mosquitto.conf` within `mosquitto`. In `mosquitto.conf`, paste the following then start the Mosquitto docker container.
 

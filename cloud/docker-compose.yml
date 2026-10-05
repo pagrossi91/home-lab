@@ -147,8 +147,7 @@ services:
     volumes:
       - ./nextcloud/config:/config
       - ${ARRAY_DIR}/cloud_data/nextcloud:/data
-    ports:
-      - 8079:443
+    # No host port: only reachable through SWAG (trusted_domains rejects IP:port access anyway)
     restart: always
     depends_on:
       - mariadb-nc
@@ -170,8 +169,7 @@ services:
       MARIADB_AUTO_UPGRADE: true
     volumes:
       - ./mariadb-nc:/var/lib/mysql # Local path where the database will be stored for persistent history logs.
-    ports:
-      - 3307:3306
+    # No host port: Nextcloud reaches it as mariadb-nc:3306 on nginx_network
     restart: always
     
 networks:

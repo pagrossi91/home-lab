@@ -55,6 +55,7 @@ Internet → Router → Pi-hole → DNSCrypt Proxy → Encrypted DNS Providers
    - Port 443/tcp → Unraid host IP:443 (HTTPS traffic to SWAG)
    - Each WireGuard host's UDP port → that host (e.g. 51821/udp → Unraid)
    - **Do not forward port 80.** Certificates use DNS validation, so port 80 is only needed for the LAN HTTP→HTTPS redirect.
+   - **IPv6 firewall on.** IPv6 has no port forwarding; the router's IPv6 firewall is the only thing in front of every published container port. See **SWAG Reverse Proxy → Host Port Exposure**.
 3. DuckDNS account and subdomain created
 4. If using Raspberry Pi OS install DNS Lookup Utils (dig) and tcpdump as these are not included by default. These are used in the troubleshooting and verification sections below.
     ```bash
@@ -440,9 +441,7 @@ dnscrypt-proxy:
   container_name: dnscrypt-proxy
   image: klutchell/dnscrypt-proxy:latest
   user: "${LOCAL_USER}:${LOCAL_USER}"
-  ports:
-    - "5053:5053/tcp"
-    - "5053:5053/udp"
+  # No ports: Pi-hole reaches it over nginx_network. See Host Port Exposure.
   networks:
     nginx_network:
       ipv4_address: ${DNSCRYPTPROXY_STATIC_IP}
@@ -508,7 +507,6 @@ pihole:
     - "53:53/tcp"
     - "53:53/udp"
     - "81:80/tcp"
-    - "444:443/tcp"
   environment:
     FTLCONF_webserver_api_password: ${PIHOLE_WEBPASSWORD}
     FTLCONF_dns_upstreams: ${DNSCRYPTPROXY_STATIC_IP}#5053
@@ -546,12 +544,13 @@ FTLCONF_dns_upstreams: 172.18.0.12#5053
 ```yaml
 ports:
   - "81:80/tcp"    # Web interface on port 81 (avoids conflicts)
-  - "444:443/tcp"  # HTTPS interface on port 444
 ```
 **Why non-standard ports**: Port 80/443 are reserved for SWAG reverse proxy. Using standard ports would cause:
 - Port conflicts preventing Pi-hole from starting
 - SWAG unable to bind to ports, breaking external access
 - "Address already in use" errors in container logs
+
+Pi-hole's own HTTPS (443, self-signed) is not published at all: SWAG terminates TLS and proxies `pihole:80` over `nginx_network`. Port 81 stays because LAN-side consumers use it — Home Assistant's Pi-hole integrations and Nebula-Sync on the Pi.
 
 ```yaml
 cap_add:
@@ -613,7 +612,7 @@ These steps will help you identify the problem. Resolutions will likely be more 
 dig @${PIHOLE_STATIC_IP} google.com
 
 # Check if Pi-hole can reach DNSCrypt proxy
-dig @${PIHOLE_STATIC_IP} -p 5053 google.com
+docker exec pihole dig @${DNSCRYPTPROXY_STATIC_IP} -p 5053 google.com
 
 # Verify container networking
 docker exec pihole nslookup google.com ${DNSCRYPTPROXY_STATIC_IP}
@@ -824,6 +823,45 @@ ssl_reject_handshake on;
 ```
 
 Any request for a hostname without a matching proxy-conf — a bare WAN IP, a scanner guessing names, an old bookmark — is refused during the TLS handshake, before a certificate is sent. Scanners hitting the bare IP therefore don't even learn the domain from the cert. Side effect: the SWAG landing page in `/config/www` is no longer served, and the default block cannot host `*.subfolder.conf` proxy-confs.
+
+#### Host Port Exposure
+
+Two layers decide who can reach a container. The **router** decides what the internet can reach; each container's **`ports:`** entry decides what the LAN can reach. Keep both minimal.
+
+**Internet: IPv4.** Only 443/tcp (SWAG) and the WireGuard UDP port are forwarded. Everything else in a `ports:` list is LAN-only by virtue of not being forwarded — no host firewall is involved (Unraid has no `ufw`, and Docker's published ports bypass `ufw` anyway).
+
+**Internet: IPv6.** The server has a globally routable IPv6 address on `br0`, and Docker publishes every port on `[::]` as well as `0.0.0.0`. Port forwarding does not apply to IPv6, so the **router's IPv6 firewall is the only thing between the internet and every published port** — Portainer, MariaDB, MQTT, Pi-hole's DNS. Keep it enabled (ASUS: Firewall → General → Enable IPv6 Firewall), and re-check after a router reset or firmware update.
+
+Verify both:
+
+```bash
+# IPv4, from the server. A port answers via hairpin only if the router forwards it. Expect only 443.
+WAN=$(dig +short ${DOMAIN} @1.1.1.1)
+for p in 80 81 443 9000 8123; do timeout 3 bash -c "</dev/tcp/$WAN/$p" 2>/dev/null && echo "$p forwarded" || echo "$p closed"; done
+
+# IPv6: get the server's global address
+ip -6 addr show br0 scope global
+```
+
+Then, from a phone on **cellular** (Wi-Fi and VPN off), open `http://[<that address>]:81/admin`:
+- **Hangs until timeout** — the firewall is silently dropping it. Correct.
+- **Loads** — the IPv6 firewall is off and every published port is on the internet. Fix immediately.
+- **Fails instantly** ("not connected") — the phone has no IPv6 route; inconclusive. This is always the result over WireGuard, whose tunnel is IPv4-only (`ALLOWEDIPS: 0.0.0.0/0`).
+
+**LAN: publish only what something outside Docker uses.** Containers on a shared Docker network reach each other by container name and never touch a published port. A `ports:` entry is only for a browser, a LAN device, or the Pi. Removed 2026-10-05:
+
+| Port | Container | Why it was not needed |
+|---|---|---|
+| 444 | `pihole` | Self-signed HTTPS. SWAG terminates TLS and proxies `pihole:80` |
+| 5053 tcp/udp | `dnscrypt-proxy` | Pi-hole queries it over `nginx_network`. Published, it was an **unfiltered** resolver any LAN device could use to bypass Pi-hole |
+| 3306 | `mariadb-ha` | Home Assistant's `db_url` already uses `mariadb-ha` |
+| 3307 | `mariadb-nc` | Nextcloud's `dbhost` was `<LAN_IP>:3307`, looping out through the host. Repointed with `docker exec nextcloud occ config:system:set dbhost --value=mariadb-nc:3306` |
+| 9001 | `mosquitto-mqtt` | `mosquitto.conf` has no websockets listener; nothing answered on it |
+| 8079 | `nextcloud` | `trusted_domains` only accepts the DuckDNS name, so `<LAN_IP>:8079` returned "untrusted domain". SWAG reaches `nextcloud:443` directly |
+
+The Pi runs the same `docker-compose.yml`, so it drops 444 and 5053 on its next `docker compose up -d`.
+
+Before **adding** a `ports:` entry, ask whether the consumer is a container. If it is, put both on a shared network and use the container name. Before **removing** one, find its consumers: grep Home Assistant's `.storage/core.config_entries` and `secrets.yaml`, and each app's own config, for `<LAN_IP>:<port>`. Anything connecting by LAN IP must be repointed first, or it breaks when the port goes away.
 
 #### Troubleshooting
 **Issue**: Certificate generation fails

@@ -58,8 +58,7 @@ services:
       MARIADB_AUTO_UPGRADE: true
     volumes:
       - ${APPDATA_DIR}/mariadb-ha:/var/lib/mysql # Local path where the database will be stored for persistent history logs.
-    ports:
-      - 3306:3306
+    # No host port: Home Assistant reaches it as mariadb-ha:3306 on homeassistant_network
     restart: always
 
   influxdb:
@@ -125,8 +124,7 @@ services:
       - ${APPDATA_DIR}/mosquitto/data:/mosquitto/data
       - ${APPDATA_DIR}/mosquitto/log:/mosquitto/log
     ports:
-      - 1883:1883
-      - 9001:9001
+      - 1883:1883 # LAN MQTT clients. (9001 removed: mosquitto.conf has no websockets listener)
     restart: always
 
   # zwave-js-ui: # https://zwave-js.github.io/zwave-js-ui/#/getting-started/quick-start?id=docker
