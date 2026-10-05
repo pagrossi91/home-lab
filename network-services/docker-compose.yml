@@ -15,7 +15,7 @@ networks:
           gateway: ${WG_NETWORK_GATEWAY}
 
 services: 
-  duckdns: # Only active on raspberry pi
+  duckdns:
     image: lscr.io/linuxserver/duckdns:latest
     container_name: duckdns
     networks:
@@ -224,7 +224,7 @@ services:
       - ${APPDATA_DIR}/portainer/data:/data
     restart: always
 
-  swag: # Only active on raspberry pi
+  swag:
     image: lscr.io/linuxserver/swag:latest
     container_name: swag
     networks:
@@ -248,7 +248,7 @@ services:
       - ${APPDATA_DIR}/swag/config:/config
     ports:
       - 443:443
-      - 80:80 #optional
+      - 80:80 # optional; LAN-only HTTP->HTTPS redirect. Not forwarded on the router (DNS validation needs no port 80)
     restart: unless-stopped
     # depends_on:
     #   - duckdns

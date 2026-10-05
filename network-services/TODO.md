@@ -6,44 +6,8 @@ This file tracks pending improvements, security hardening, and configuration tas
 
 ### High Priority
 
-#### 1. Remove External Pi-hole Admin Access
-**Risk Level**: HIGH - Pi-hole admin currently exposed to internet via SWAG
-
-**Current State**: 
-- Pi-hole accessible via `https://pihole.<subdomain>.duckdns.org`
-- Exposes DNS logs, network topology, and admin controls to internet
-- Single password protects entire network DNS control
-
-**Security Impact**:
-- **DNS Query Exposure**: Attackers can view all DNS queries from your network, revealing browsing habits, internal services, and network topology
-- **Network Reconnaissance**: Pi-hole logs show internal device names, IP addresses, and service discovery attempts
-- **DNS Manipulation**: Compromised admin access allows redirecting any domain to malicious servers (banking sites → phishing, software updates → malware)
-- **Persistent Network Control**: DNS control enables long-term persistent access - redirect security updates, block security tools, etc.
-- **Data Exfiltration**: Can redirect internal services to external servers to capture credentials and sensitive data
-- **Lateral Movement**: Knowledge of internal network structure facilitates attacks on other services
-
-**Recommended Action**: Remove external access entirely
-```bash
-# Disable external Pi-hole access
-mv ./swag/config/nginx/proxy-confs/pihole.subdomain.conf ./swag/config/nginx/proxy-confs/pihole.subdomain.conf.disabled
-
-# Restart SWAG to apply changes
-docker compose restart swag
-
-# Verify external access is blocked
-curl -I https://pihole.<subdomain>.duckdns.org
-# Should return: HTTP 404 or connection refused
-```
-
-**Alternative for Remote Access**:
-```bash
-# Option 1: SSH tunnel (recommended)
-ssh -L 8181:localhost:81 user@your-server-ip
-# Then access: http://localhost:8181/admin
-
-# Option 2: VPN access to local network
-# Configure WireGuard/OpenVPN, then use: http://server-local-ip:81/admin
-```
+#### ~~1. Remove External Pi-hole Admin Access~~ ✅ Done (2026-10-05)
+Pi-hole admin — along with Portainer and the Unraid web UI — is now restricted to LAN/WireGuard at the SWAG level. Each proxy-conf starts with an `if ($remote_addr !~ ...) { return 444; }` rule, so internet clients get a silently dropped connection while the same `https://<service>.<subdomain>.duckdns.org` URLs keep working at home and over VPN. Unknown hostnames are refused at the TLS handshake (`ssl_reject_handshake on` in `default.conf`). See **README → SWAG Reverse Proxy → Access Restrictions**.
 
 #### 2. Implement Local Access Restrictions
 **Purpose**: Restrict Pi-hole admin to local network only
