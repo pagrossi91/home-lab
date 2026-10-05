@@ -17,54 +17,8 @@ The gap as written didn't exist: over IPv4 the router forwards only 443 and the 
 #### ~~1. Add Security Headers to SWAG Proxy Configs~~ ✅ Done (2026-10-05)
 HSTS (two years, `includeSubDomains`, no preload) is set in `ssl.conf`, so it covers every service. `nosniff` and `X-Frame-Options: SAMEORIGIN` are added through `map` fallbacks only where an app sends none, so apps that set their own keep their values. The suggested generic CSP (it would break Plex, Immich and Nextcloud) and `X-XSS-Protection` (obsolete) were deliberately left out. Nextcloud's proxy-conf no longer hides its own headers. The stale `overseerr` vhost (container long gone) was removed. See **README → SWAG Reverse Proxy → Security Headers**.
 
-#### 2. Implement Rate Limiting
-**Purpose**: Prevent brute force and DoS attacks
-
-**Security Impact**:
-- **Brute Force Prevention**: Limits login attempts, making password attacks impractical (10 attempts/minute vs 1000s/minute)
-- **DoS Mitigation**: Prevents attackers from overwhelming your services with excessive requests
-- **Resource Protection**: Limits CPU/memory consumption from automated attacks
-- **Bandwidth Conservation**: Prevents bandwidth exhaustion from malicious traffic
-- **Service Availability**: Ensures legitimate users can access services during attack attempts
-
-**Attack Scenarios Prevented**:
-- **Credential Stuffing**: Automated login attempts using leaked passwords → Limited to 5-10 attempts per minute
-- **Application DoS**: Overwhelming service with requests → Rate limiting prevents resource exhaustion
-- **Reconnaissance**: Automated scanning of endpoints → Slows down attacker reconnaissance
-- **API Abuse**: Excessive automated API calls → Protects backend services from overload
-
-**Real-World Impact**: 
-- **Before**: Attacker could attempt 10,000 passwords in 10 minutes
-- **After**: Attacker limited to 100-150 attempts in same timeframe
-- **Detection**: Rate limiting triggers provide early warning of attack attempts
-
-**Implementation**: Add to SWAG's main nginx configuration
-
-Create `./swag/config/nginx/rate-limiting.conf`:
-```nginx
-# Rate limiting zones
-limit_req_zone $binary_remote_addr zone=admin:10m rate=10r/m;
-limit_req_zone $binary_remote_addr zone=general:10m rate=60r/m;
-limit_req_zone $binary_remote_addr zone=login:10m rate=5r/m;
-```
-
-Include in `./swag/config/nginx/nginx.conf` within `http {}` block:
-```nginx
-include /config/nginx/rate-limiting.conf;
-```
-
-Then add to proxy configs as needed:
-```nginx
-location /admin {
-    limit_req zone=admin burst=5 nodelay;
-    # ... rest of config
-}
-
-location /login {
-    limit_req zone=login burst=2 nodelay;
-    # ... rest of config
-}
-```
+#### ~~2. Implement Rate Limiting~~ ✅ Done (2026-10-05)
+Every internet-facing login already had protection, from the app itself or from SWAG's fail2ban (5 × HTTP 401 → banned on all ports), except Seerr. Its failed logins return 403, which fail2ban doesn't count, so Seerr's local sign-in was turned off (everyone uses Plex). A `recidive` jail now bans repeat offenders for a week. The suggested nginx `limit_req` was not adopted: its `/admin` and `/login` paths don't exist in these apps, a 60 r/m "general" zone would break Home Assistant and Immich, and per-IP limits would throttle the whole household, which shares the router's IP. Home Assistant's own ban on the router IP (`ip_bans.yaml`) is now documented under Troubleshooting. See **README → SWAG Reverse Proxy → Brute-Force Protection**.
 
 ## 🛠️ Configuration Improvements
 

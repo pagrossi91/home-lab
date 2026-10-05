@@ -3,6 +3,8 @@
 I'm locked out! Now what?
 https://www.home-assistant.io/docs/locked_out/
 
+Domain fails for everyone at home/on VPN but `http://<LAN_IP>:8123` works? HA has probably banned the router's IP — check `config/ip_bans.yaml`. See network-services README → SWAG Troubleshooting.
+
 Possible Lovelace yaml starter: https://community.home-assistant.io/t/my-hass-io-and-lovelace-setup-updated/72902
 
 ### 5.1. Z-Wave and Zigbee Controller Setup

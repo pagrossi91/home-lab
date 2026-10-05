@@ -921,6 +921,48 @@ done
 
 Expect exactly one of each header per service.
 
+#### Brute-Force Protection
+
+No nginx rate limiting is configured, on purpose. Every internet-facing login is already covered, and a ban is stronger than a slowdown:
+
+| Service | Failed login returns | Protection |
+|---|---|---|
+| Home Assistant | 200 + error body | HA's own lockout: bans the IP after 5 consecutive failures (`.storage/http`). See the `ip_bans.yaml` entry under Troubleshooting |
+| Nextcloud | redirect | Nextcloud's built-in brute-force throttling. Sees real client IPs: `trusted_proxies` = the `nginx_network` range |
+| Immich | 401 | SWAG fail2ban (`nginx-unauthorized`) |
+| Navidrome | 401 | SWAG fail2ban, plus Navidrome's own login rate limit |
+| Seerr | — | Local (email/password) sign-in is **disabled** (Settings → Users → Enable Local Sign-In); everyone uses Plex sign-in. `POST /api/v1/auth/local` answers "Password sign-in is disabled." without checking a password |
+| Plex | — | Auth happens at plex.tv; the server has no password form |
+| Admin vhosts | — | Unreachable from outside (`return 444`) |
+
+**SWAG's fail2ban** (`swag/config/fail2ban/jail.local`) bans at the firewall inside the SWAG container, on all ports:
+
+| Jail | Watches | Rule |
+|---|---|---|
+| `nginx-unauthorized` | `access.log`, HTTP 401 | 5 in 10 min → 10 min ban |
+| `nginx-http-auth`, `nginx-badbots`, `nginx-botsearch`, `nginx-deny` | SWAG defaults | scanners, bad bots, nginx auth failures |
+| `recidive` | fail2ban's own log | banned 3 times in 1 day → **1 week** ban |
+
+`recidive` exists because a 10-minute ban alone still lets a patient bot try ~700 passwords a day from one IP. Its `findtime` can't exceed fail2ban's `dbpurgeage` (1 day), the window it keeps ban history for.
+
+`ignoreip` exempts `10.0.0.0/8`, `192.168.0.0/16`, and `172.16.0.0/12`. This is essential: every home and WireGuard request arrives as the router's LAN IP, so banning it would lock out the whole household.
+
+> ⚠️ **SWAG copies `jail.local` into the container only at startup.** `fail2ban-client reload` alone won't see an edit. Either restart SWAG, or sync and reload without downtime:
+> ```bash
+> docker exec swag cp /config/fail2ban/jail.local /etc/fail2ban/jail.local
+> docker exec swag fail2ban-client reload
+> docker exec swag fail2ban-client status     # new jail should be listed
+> ```
+
+Before exposing a **new** service, check what a wrong password returns (`curl -s -o /dev/null -w '%{http_code}' -d ... https://<svc>.<domain>/<login-endpoint>`). 401 is covered by fail2ban automatically. Anything else (Seerr's was 403) needs the app's own protection, a dedicated jail, or the login form turned off.
+
+Useful commands:
+```bash
+docker exec swag fail2ban-client status nginx-unauthorized   # current bans and counts
+docker exec swag fail2ban-client status recidive
+docker exec swag fail2ban-client set <jail> unbanip <ip>     # lift a ban
+```
+
 #### Troubleshooting
 **Issue**: Certificate generation fails
 ```bash
@@ -968,6 +1010,27 @@ If it keeps happening, make every Pi-hole client resolve the domain to the Unrai
 address=/yourdomain.duckdns.org/<UNRAID_LAN_IP>
 ```
 and add the Docker gateway (`172.18.0.1`, what tunnel→LAN traffic arrives as) to the 444 rule: `"^(192\.168\.X\.|172\.18\.0\.1$)"`. The trade-off is that other containers on the host also arrive as `172.18.0.1`.
+
+**Issue**: Home Assistant fails through the domain **for everyone at home and on WireGuard**, but works from cellular and at `http://<LAN_IP>:8123`
+
+Home Assistant has **banned the router**. Check `homeassistant/config/ip_bans.yaml` — if it exists and lists the router's LAN IP, that's it.
+
+Why it happens: HA's own login lockout (stored in `homeassistant/config/.storage/http` since the `http:` YAML block was migrated: `ip_ban_enabled: true`, `login_attempts_threshold: 5`) bans an IP after 5 consecutive failed logins. Every request that comes in through the domain from home or WireGuard arrives as the **router's** LAN IP (see Access Restrictions), so HA can't tell household members apart — five failures from anyone, on any device, ban all of them. Failures aren't only mistyped passwords: a browser tab or app holding an expired session retries `/auth/token` or `/api/websocket` and each retry counts (`Login attempt or request with invalid authentication` in the HA log). A successful login resets the count, which is why this is rare and seemingly random. HA has no allow-list to exempt an IP.
+
+Symptoms that point here:
+- Every page through the domain returns **403 Forbidden** (check SWAG's `access.log` for `403` on HA requests from the router IP), while `http://<LAN_IP>:8123` works — direct LAN access comes from each device's own IP, which isn't banned.
+- `docker logs home-assistant 2>&1 | grep 'Banned IP'` shows `Banned IP <router IP> for too many login attempts`.
+- HA raises a "Login attempt failed" notification, but you only see it via `:8123`, since the domain is the thing that's blocked.
+
+Fix:
+```bash
+cat ./homeassistant/config/ip_bans.yaml     # one entry per banned IP, with banned_at
+# delete the router's entry (or the whole file if it's the only one), then:
+docker restart home-assistant              # bans are read at startup; editing alone does nothing
+```
+Then find what was failing — the `Login attempt or request with invalid authentication` lines just before the ban name the URL and user agent. Signing that device out and back in stops the retries.
+
+SWAG's fail2ban is not involved: its `ignoreip` covers all of `192.168.0.0/16`, so it never bans the router.
 
 **Reference**: [SWAG Documentation](https://docs.linuxserver.io/general/swag)
 
