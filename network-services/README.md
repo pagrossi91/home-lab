@@ -35,7 +35,7 @@ Internet → Router → Pi-hole → DNSCrypt Proxy → Encrypted DNS Providers
 ```
 
 ### Network Design Philosophy
-- **Single Custom Bridge Network**: All services use `nginx_network` for inter-service communication
+- **Shared Front-End Network**: SWAG and every service it proxies share `nginx_network`; app databases and caches sit on private per-app networks (see Network Segmentation)
 - **Static IP Assignment**: Prevents configuration drift across container restarts
 - **Encrypted DNS Chain**: All DNS queries are encrypted before leaving the network
 - **Secure External Access**: Only HTTPS traffic allowed through SWAG reverse proxy
@@ -1173,8 +1173,41 @@ docker logs watchtower
 **Why Custom Network is Essential**:
 - **Container Communication**: Enables automatic DNS resolution between containers
 - **Static IP Assignment**: Allows predictable service addressing
-- **Security Isolation**: Isolates services from other Docker containers
+- **Security Isolation**: Separates these services from containers on other Docker networks — but **not from each other**. Every member can reach every other member on any port; see Network Segmentation.
 - **Performance**: Direct container communication without NAT
+
+### Network Segmentation
+
+**Threat model:** an internet attacker compromises one public-facing app (Immich, Nextcloud, Seerr, Plex, Navidrome, Home Assistant). What can that container reach next?
+
+A Docker bridge network is flat: every member can reach every other member on every port. Before segmentation, a throwaway container on `nginx_network` (standing in for a compromised app) reached:
+1. **Internal-only services by name** — Immich's Redis (**no password**; `PING` → `PONG`), Immich's Postgres and ML API (no auth), Nextcloud's MariaDB.
+2. **Every host-published port**, via the host's LAN IP or the bridge gateway — Portainer, Frigate's unauthenticated `:5000`, MQTT, InfluxDB, the Unraid UI.
+3. **The rest of the LAN**, e.g. the router's admin page.
+
+Docker networks can only fix (1). Paths (2) and (3) leave through the host's normal routing, whatever network the container is on — closing them needs host firewall rules (tracked in the TODO).
+
+**Private backends (done 2026-10-05).** Services with no host port and a single consumer live on a per-app network instead of `nginx_network`:
+
+| Network | Members | On `nginx_network` too |
+|---|---|---|
+| `immich_backend` | `immich_server`, `immich_machine_learning`, `immich_redis`, `immich_postgres` | only `immich_server` (SWAG proxies it) |
+| `nextcloud_backend` | `nextcloud`, `mariadb-nc` | only `nextcloud` |
+
+Both are defined in `cloud/docker-compose.yml` with Docker-assigned subnets. Apps find their backends by compose service / container name (`redis`, `database`, `immich-machine-learning`, `mariadb-nc`), which resolves on any network in the same project, so nothing was repointed. They are ordinary (not `internal: true`) bridges because Immich ML downloads models from the internet.
+
+**Rule for new services:** put a service on `nginx_network` only if SWAG proxies it. Its database, cache, or worker goes on a `<app>_backend` network shared only with that app.
+
+**Why not split further** (management / DNS / external networks): Portainer, Pi-hole, and the *arrs are deliberately published on host ports for LAN access, so a compromised container reaches them through the LAN IP regardless of Docker network. Moving them would add complexity and close nothing until the host firewall exists.
+
+Verify — a throwaway container on `nginx_network` should get `closed` for every backend and `OPEN` for the proxied apps:
+
+```bash
+docker run --rm --network nginx_network alpine:3 sh -c '
+p(){ nc -z -w2 $1 $2 && echo "OPEN   $1:$2" || echo "closed $1:$2"; }
+p immich_redis 6379; p immich_postgres 5432; p immich_machine_learning 3003; p mariadb-nc 3306
+p immich_server 2283; p nextcloud 443'
+```
 
 ### Static IP Address Strategy
 

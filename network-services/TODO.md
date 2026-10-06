@@ -20,6 +20,31 @@ HSTS (two years, `includeSubDomains`, no preload) is set in `ssl.conf`, so it co
 #### ~~2. Implement Rate Limiting~~ ✅ Done (2026-10-05)
 Every internet-facing login already had protection, from the app itself or from SWAG's fail2ban (5 × HTTP 401 → banned on all ports), except Seerr. Its failed logins return 403, which fail2ban doesn't count, so Seerr's local sign-in was turned off (everyone uses Plex). A `recidive` jail now bans repeat offenders for a week. The suggested nginx `limit_req` was not adopted: its `/admin` and `/login` paths don't exist in these apps, a 60 r/m "general" zone would break Home Assistant and Immich, and per-IP limits would throttle the whole household, which shares the router's IP. Home Assistant's own ban on the router IP (`ip_bans.yaml`) is now documented under Troubleshooting. See **README → SWAG Reverse Proxy → Brute-Force Protection**.
 
+### Deferred: Needs Planning
+
+#### 1. Restrict Container → LAN/Host Traffic (Network Segmentation Stage 2)
+**Gap (verified 2026-10-05):** a container compromised from the internet can open connections to every host-published port through the host's LAN IP or the bridge gateway: Portainer `:9000` (Docker socket behind a login), Frigate's unauthenticated `:5000`, MQTT, InfluxDB, the *arrs, and the Unraid UI. It can also reach the rest of the LAN, such as the router's admin page. Docker networks can't stop this, because the traffic leaves through the host's normal routing. This is the main remaining path from an internet-facing breach into the LAN.
+
+**Direction:** host firewall rules that drop *new* connections from Docker bridge subnets to the LAN and to host ports, with an explicit allow-list by source container. Replies to connections the LAN starts (`ESTABLISHED,RELATED`) stay allowed, so LAN access to every service is unchanged.
+- `DOCKER-USER` (FORWARD) covers container → LAN and container → *published* ports, which are DNAT'd to another container. Match on `--ctorigdst` to see the pre-DNAT target.
+- `INPUT` covers container → services on the host itself, such as the Unraid web UI (SWAG's `unraid` proxy-conf needs an allow rule).
+
+**Plan before implementing:**
+1. Inventory every container's legitimate LAN/host destinations. Known so far:
+   - Home Assistant: IoT devices, cameras, Pi-holes `:81`, the *arrs and SABnzbd by LAN IP, Plex via `plex.direct`, and `matterjs-server` (host network).
+   - Frigate: cameras.
+   - SWAG: the Pi (Pi-hole, Portainer) and the Unraid UI.
+   - Seerr: Plex via `plex.direct`, which resolves to the LAN IP.
+   - Plex: GDM/DLNA discovery.
+   - Nebula-Sync runs on the Pi, so it's out of scope here.
+   - WireGuard: peers' LAN access goes through `wg_network`, and must be allowed.
+2. Decide the default per network: deny for `nginx_network`, `vpn` and `immich`/`nextcloud` backends; allow-list for `homeassistant_network`.
+3. Persistence: Unraid has no firewall manager. Apply the rules from a User Scripts entry at array start (or the `go` file), make them idempotent, and confirm Docker doesn't flush `DOCKER-USER` when it restarts.
+4. Rollout: start with `LOG` rules only for a week to catch real traffic that an allow-list would miss, then switch to `DROP`.
+5. Verify with the throwaway-container probe from README → Network Segmentation, extended to host ports and the router, plus a check of every HA integration and the Plex clients.
+
+**Risks:** a missing allow rule fails quietly (an HA device goes unavailable, Plex discovery stops working). Also, a rule that matches LAN *replies* instead of new connections would cut LAN access to services.
+
 ## 🛠️ Configuration Improvements
 
 ### High Priority
@@ -32,11 +57,8 @@ Pi-hole and Watchtower already had built-in checks. Added `dnscrypt-proxy` (`dns
 
 ### Medium Priority
 
-#### 1. Network Segmentation
-For enhanced security, consider separate networks:
-- Management network (Portainer, admin interfaces)
-- DNS network (Pi-hole, DNSCrypt)
-- External network (SWAG, DuckDNS)
+#### ~~1. Network Segmentation~~ ✅ Done (2026-10-05), Stage 1
+A container on `nginx_network` could reach Immich's Redis (no password), Postgres and ML API, and Nextcloud's MariaDB. Those now sit on private `immich_backend` and `nextcloud_backend` networks; only `immich_server` and `nextcloud` remain on `nginx_network` for SWAG. The proposed management/DNS/external split was not adopted: Portainer, Pi-hole and the *arrs are published on host ports for LAN access, so a compromised container reaches them through the LAN IP whichever Docker network they're on. Closing that path is Stage 2: **Security Hardening → Restrict Container → LAN/Host Traffic**. See **README → Network Configuration Deep Dive → Network Segmentation**.
 
 #### 2. High Availability Setup
 
