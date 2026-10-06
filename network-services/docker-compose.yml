@@ -176,6 +176,12 @@ services:
     volumes:
       - ${APPDATA_DIR}/dnscrypt/proxy/config:/config
     restart: always
+    healthcheck: # Status only; Docker does not restart unhealthy containers. See README → Health Checks
+      test: ["CMD", "dnsprobe", "example.com", "127.0.0.1:5053"] # exec form: image has no shell or dig; dnsprobe ships in it
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     # depends_on:
       # - duckdns
       # - dnscrypt-server # Only necessary if this is the only DNSCrypt server configured in your DNSCrypt Proxy.
@@ -247,5 +253,11 @@ services:
       - 443:443
       - 80:80 # optional; LAN-only HTTP->HTTPS redirect. Not forwarded on the router (DNS validation needs no port 80)
     restart: unless-stopped
+    healthcheck: # Status only. Port 80 default server answers 301; HTTPS to localhost would fail (not on cert, unknown names rejected)
+      test: ["CMD", "curl", "-fso", "/dev/null", "http://127.0.0.1/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     # depends_on:
     #   - duckdns

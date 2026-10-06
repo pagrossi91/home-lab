@@ -429,6 +429,12 @@ dnscrypt-proxy:
   volumes:
     - ${APPDATA_DIR}/dnscrypt/proxy/config:/config
   restart: unless-stopped
+  healthcheck: # see Health Checks
+    test: ["CMD", "dnsprobe", "example.com", "127.0.0.1:5053"]
+    interval: 60s
+    timeout: 10s
+    retries: 3
+    start_period: 30s
 ```
 
 #### Deployment
@@ -557,10 +563,12 @@ docker compose up -d pihole
    - Select "Listen on all interfaces"
 5. **Verify DNS and blocking functionality**: Conduct the troubleshooting steps below to verify DNS resolution,  routing to DNSCrypt, and ad blocking are working. If they are, proceed to the next step. Else, search logs relevant to the troubleshooting step that failed.
 6. **Router DNS Configuration**
-    - Primary DNS: Set to your Docker host IP
+    - Primary DNS: The Unraid host's LAN IP
       > **Note**: This should be `192.168.XX.XXX` and not the internal docker IP address set in the `.env` file, which would look like `172.18.0.10`.
-    - Secondary DNS: Set to 1.1.1.1 or 8.8.8.8 (backup)
+    - Secondary DNS: The Raspberry Pi's LAN IP — the second Pi-hole, **not** a public resolver like 1.1.1.1 or 8.8.8.8
     - DHCP settings: Ensure router continues handling DHCP
+
+    **Why the secondary must be the other Pi-hole**: Clients don't treat "secondary" as standby-only — many send queries to both servers all the time. A public resolver there means a share of every device's lookups skips Pi-hole filtering and leaves the house **unencrypted**, visible to the ISP, even while everything is healthy. Two Pi-holes give real redundancy without that leak.
   
     **Why router configuration is essential**: Without pointing your router to Pi-hole:
     - Network-wide ad blocking won't function
@@ -681,6 +689,12 @@ swag:
   ports:
     - 443:443
     - 80:80
+  healthcheck: # see Health Checks
+    test: ["CMD", "curl", "-fso", "/dev/null", "http://127.0.0.1/"]
+    interval: 60s
+    timeout: 10s
+    retries: 3
+    start_period: 60s
 ```
 
 **Critical Environment Variables**:
@@ -1208,6 +1222,33 @@ Client (clean, fast response)
 - **Cached queries**: 1-5ms response time
 - **New queries**: 50-150ms including relay overhead
 - **Cache hit rate**: Typically 60-80% for residential usage
+
+## 🩺 Health Checks
+
+| Container | Check | Source |
+|---|---|---|
+| `pihole` | `dig` against its own DNS port | Built into the image |
+| `watchtower` | `/watchtower --health-check` | Built into the image |
+| `dnscrypt-proxy` | `dnsprobe example.com 127.0.0.1:5053` — a real lookup through the encrypted upstreams | Compose `healthcheck:` |
+| `swag` | `curl -f http://127.0.0.1/` — nginx answers (301 from the port-80 default server) | Compose `healthcheck:` |
+
+**A health check is a status flag, nothing more.** It shows `(healthy)` / `(unhealthy)` in `docker ps` and Portainer, keeps the last 5 results in `docker inspect --format '{{json .State.Health}}' <container>`, and emits a `health_status` Docker event. It does **not**:
+- restart the container — Docker never restarts on `unhealthy`; crashes are handled by the `restart:` policy;
+- write to `docker logs`;
+- notify anyone — nothing consumes the status yet (alerting is deferred to the TODO's monitoring items).
+
+Its value is diagnosis: when DNS acts up, `dnscrypt-proxy (unhealthy)` points at the cause in seconds.
+
+Why the checks look the way they do:
+- **dnscrypt-proxy uses exec form with `dnsprobe`.** The image has no shell, `dig`, or `curl`; `dnsprobe` ships in it for this purpose. A string-form `test:` needs a shell and would fail forever. Most probes are answered from dnscrypt-proxy's cache; a miss is one small encrypted, relayed lookup.
+- **SWAG probes plain HTTP on port 80.** HTTPS to `localhost` can't pass — `localhost` isn't on the certificate, and `ssl_reject_handshake` refuses unknown names. This confirms nginx is up, not that the certificate is valid.
+- **`start_period`** (30 s / 60 s) covers startup — dnscrypt-proxy fetching server lists, SWAG checking certs and starting fail2ban. Failures during it don't count.
+
+Deliberately not done:
+- **No `depends_on: condition: service_healthy`** for Pi-hole → dnscrypt-proxy. If the server boots during an internet outage, dnscrypt-proxy can't become healthy, and Pi-hole would not start at all — no LAN DNS, not even local records or blocking. With a plain `depends_on`, Pi-hole starts and recovers once upstream returns.
+- **No `autoheal` container.** Restarting unhealthy containers requires mounting `docker.sock` — another root-equivalent container, for a failure (hung but not crashed) that hasn't occurred.
+
+**Overhead** (measured): each probe takes ~0.1 s wall and ~0.02–0.03 s CPU, once a minute per container — around 0.05 s of CPU per minute across both, on a 4-core host. Less than Pi-hole's built-in check, which runs every 30 s. Negligible next to downloads or streaming, which load disk and network rather than this.
 
 ## 🔍 DNS Security Verification
 
