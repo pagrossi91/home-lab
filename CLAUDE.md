@@ -188,12 +188,46 @@ Change the schedule in the Unraid UI. If editing `schedule.json` by hand, also
 copy it to `/tmp/user.scripts/schedule.json` — the runtime reads the cached copy
 and only refreshes it when missing.
 
-It first pulls the Raspberry Pi's `~/homelab/network-services` into
-`/mnt/user/appdata/rpi3-backup/` (read-only on the Pi, over SSH as `rpi3`).
-It then rsyncs `/boot/` and `/mnt/user/appdata/` to the Time Capsule, excluding
-regenerable bulk (`.git`, `MediaCover/`, `pihole-FTL.db`, `gravity*.db`, `listsCache/`,
-Immich ML cache, logs, Plex cache). Plex `Metadata/` and `Plug-in Support/` are
-**kept** — the latter holds watch history and is not regenerable.
+**What it backs up** (the bar: everything needed to rebuild the configuration
+as it was; not history, logs, caches, or anything an app re-downloads):
+
+```
+<TC share>/
+├── unraid-backups/
+│   ├── usb-config/           /boot
+│   ├── appdata/              /mnt/user/appdata, minus excludes
+│   ├── immich-db/            newest nightly Immich dump (its Postgres is on
+│   │                         the array, outside appdata)
+│   ├── permissions.txt.gz    mode/uid/gid of every appdata file
+│   └── _versions/<date>/     files replaced or deleted, kept 30 days
+└── rpi3-backups/
+    ├── network-services/     the Pi's ~/homelab/network-services, pulled over
+    │                         SSH as rpi3 (read-only on the Pi)
+    ├── permissions.txt.gz
+    └── _versions/<date>/
+```
+
+Excluded: `.git`, `MediaCover/`, logs, Plex cache/transcodes, Immich ML cache,
+Pi-hole's query log (`pihole-FTL.db`), its compiled blocklists (`gravity*.db`,
+`listsCache/`; subscriptions and allow/deny lists are kept in
+`gravity_backups/`, and `pihole -g` rebuilds the rest), and Home Assistant
+history (`mariadb-ha/`, InfluxDB's `engine/`; InfluxDB's users, buckets and
+tokens are kept). Plex `Metadata/` and `Plug-in Support/` are **kept**: the
+latter holds watch history and is not regenerable. On the Pi, `swag/` is also
+skipped (a copy of Unraid's).
+
+**Restoring permissions:** the share keeps neither modes nor owners, so a
+restored WireGuard or SWAG key would come back world-readable. After copying
+files back, run from `/mnt/user/appdata` (Unraid) or `/home/rpi3` (Pi, with
+sudo):
+
+```bash
+zcat <backup>/permissions.txt.gz | while read -r m u g p; do
+  [ -e "$p" ] && chown -h "$u:$g" "$p" && chmod "$m" "$p"; done
+```
+
+rsync runs with `--modify-window=1`: the Time Capsule keeps whole-second
+timestamps, and without it every file looks changed each week.
 
 **Transport:** the Time Capsule runs its own Samba server (since 2026-09), so
 it is mounted `vers=3.1.1,seal`: password-authenticated and encrypted on the
