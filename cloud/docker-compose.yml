@@ -23,8 +23,7 @@ services:
     env_file:
       - .env
     networks:
-      - nginx_network # SWAG reaches it here
-      - immich_backend
+      - immich_backend # only network: SWAG proxies it by host port 2283, not by name
     ports:
       - '2283:2283'
     depends_on:
@@ -140,8 +139,7 @@ services:
     image: lscr.io/linuxserver/nextcloud:latest
     container_name: nextcloud
     networks:
-      - nginx_network # SWAG reaches it here
-      - nextcloud_backend
+      - nextcloud_backend # only network: SWAG proxies it by host port 8079, not by name
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -149,7 +147,8 @@ services:
     volumes:
       - ./nextcloud/config:/config
       - ${ARRAY_DIR}/cloud_data/nextcloud:/data
-    # No host port: only reachable through SWAG (trusted_domains rejects IP:port access anyway)
+    ports:
+      - 8079:443 # SWAG (Unraid or Pi) proxies to <unraid-ip>:8079. trusted_domains rejects direct IP:port browsing
     restart: always
     depends_on:
       - mariadb-nc
@@ -171,11 +170,11 @@ services:
       MARIADB_AUTO_UPGRADE: true
     volumes:
       - ./mariadb-nc:/var/lib/mysql # Local path where the database will be stored for persistent history logs.
-    # No host port: Nextcloud reaches it as mariadb-nc:3306 on nginx_network
+    # No host port: Nextcloud reaches it as mariadb-nc:3306 on nextcloud_backend
     restart: always
     
 networks:
-  nginx_network:
+  nginx_network: # no service here joins it any more (SWAG proxies by host port); kept for the commented-out service above
     external: true
   # Private per-app backends: databases/caches stay off the shared nginx_network so a
   # compromised public-facing container can't reach them. See network-services README → Network Segmentation.

@@ -18,6 +18,7 @@ services:
   duckdns:
     image: lscr.io/linuxserver/duckdns:latest
     container_name: duckdns
+    profiles: [unraid] # Both hosts share one WAN IP, so one updater is enough; cert renewal uses its own token (swag dns-conf)
     networks:
       - nginx_network
     environment:
@@ -45,9 +46,9 @@ services:
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
       SERVERURL: ${DOMAIN}
-      SERVERPORT: 51821
+      SERVERPORT: ${WG_SERVERPORT} # what clients dial; differs per host (see .env)
       PEERS: pgiphone,pgipad,plmba,lgiphone,lgipad,misc1,misc2
-      PEERDNS: ${PIHOLE_UNRAID}, ${PIHOLE_RPI3}  # Clients can use both
+      PEERDNS: ${PIHOLE_UNRAID}, ${PIHOLE_RPI3}  # Clients can use both. Same order on both hosts
       INTERNAL_SUBNET: ${INTERNAL_SUBNET}
       ALLOWEDIPS: 0.0.0.0/0
       PERSISTENTKEEPALIVE_PEERS: all
@@ -56,20 +57,20 @@ services:
       - ${APPDATA_DIR}/wireguard/config:/config
       - ${APPDATA_DIR}/wireguard/lib/modules:/lib/modules
     ports:
-      - 51821:51820/udp
+      - ${WG_SERVERPORT}:51820/udp
     dns:  # Use both pi-holes for container's own DNS
       - ${PIHOLE_UNRAID}
       - ${PIHOLE_RPI3}
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
-    restart: always
+    restart: unless-stopped
 
   # https://github.com/pi-hole/docker-pi-hole/blob/master/README.md
   pihole:
     container_name: pihole
     image: pihole/pihole:latest
-    hostname: pihole-docker
+    hostname: pihole-${HOST_TAG}
     networks:
       nginx_network:
         ipv4_address: ${PIHOLE_STATIC_IP} # internal Docker address of pihole
@@ -102,7 +103,7 @@ services:
       - NET_ADMIN # Required if you are using Pi-hole as your DHCP server, else not needed
       - SYS_TIME 
       - SYS_NICE
-    restart: always
+    restart: unless-stopped
     depends_on:
       # - wireguard # force pi-hole to start after wireguard
       # - dhcphelper # force pi-hole to start after dhcphelper
@@ -110,16 +111,18 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=false" # excludes container from watchtower update
 
-  # nebula-sync: # Sync pi-holes; Only active on raspberry pi
-  #   image: ghcr.io/lovelaze/nebula-sync:latest
-  #   container_name: nebula-sync
-  #   environment:
-  #     TZ: ${TZ}
-  #     PRIMARY: ${PIHOLE_1_URL}|${PIHOLE_1_PWD}
-  #     REPLICAS: ${PIHOLE_2_URL}|${PIHOLE_2_PWD}
-  #     FULL_SYNC: true
-  #     CRON: 0 * * * *
-  #     RUN_GRAVITY: true
+  nebula-sync: # Copies Pi-hole settings from the Unraid Pi-hole (primary) to the Pi (replica)
+    image: ghcr.io/lovelaze/nebula-sync:latest
+    container_name: nebula-sync
+    profiles: [unraid]
+    environment:
+      TZ: ${TZ}
+      PRIMARY: ${PIHOLE_1_URL}|${PIHOLE_1_PWD}
+      REPLICAS: ${PIHOLE_2_URL}|${PIHOLE_2_PWD}
+      FULL_SYNC: true
+      CRON: 0 * * * *
+      RUN_GRAVITY: true
+    restart: unless-stopped
 
   # Runs a DHCP relay container that listens for DHCP discovery requests on the LAN and forwards them to Pihole on Docker’s internal network. Required with user defined network
   # dhcphelper: 
@@ -175,7 +178,7 @@ services:
       PGID: ${LOCAL_USER}
     volumes:
       - ${APPDATA_DIR}/dnscrypt/proxy/config:/config
-    restart: always
+    restart: unless-stopped
     healthcheck: # Status only; Docker does not restart unhealthy containers. See README → Health Checks
       test: ["CMD", "dnsprobe", "example.com", "127.0.0.1:5053"] # exec form: image has no shell or dig; dnsprobe ships in it
       interval: 60s
@@ -189,7 +192,7 @@ services:
   watchtower:
     container_name: watchtower
     image: containrrr/watchtower:latest
-    hostname: watchtower-docker
+    hostname: watchtower-${HOST_TAG}
     networks:
       - nginx_network
     environment:
@@ -215,6 +218,7 @@ services:
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
+    hostname: portainer-${HOST_TAG}
     networks:
       - nginx_network
     command: -H unix:///var/run/docker.sock
@@ -225,11 +229,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${APPDATA_DIR}/portainer/data:/data
-    restart: always
+    restart: unless-stopped
 
   swag:
     image: lscr.io/linuxserver/swag:latest
     container_name: swag
+    profiles: [unraid, failover] # Pi: standby only. Start with `docker compose --profile failover up -d swag`
     networks:
       nginx_network:
         ipv4_address: ${SWAG_STATIC_IP}

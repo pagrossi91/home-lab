@@ -60,31 +60,8 @@ Pi-hole and Watchtower already had built-in checks. Added `dnscrypt-proxy` (`dns
 #### ~~1. Network Segmentation~~ ✅ Done (2026-10-05), Stage 1
 A container on `nginx_network` could reach Immich's Redis (no password), Postgres and ML API, and Nextcloud's MariaDB. Those now sit on private `immich_backend` and `nextcloud_backend` networks; only `immich_server` and `nextcloud` remain on `nginx_network` for SWAG. The proposed management/DNS/external split was not adopted: Portainer, Pi-hole and the *arrs are published on host ports for LAN access, so a compromised container reaches them through the LAN IP whichever Docker network they're on. Closing that path is Stage 2: **Security Hardening → Restrict Container → LAN/Host Traffic**. See **README → Network Configuration Deep Dive → Network Segmentation**.
 
-#### 2. High Availability Setup
-
-##### Multiple DNSCrypt Servers
-For enhanced reliability, consider multiple DNSCrypt proxy instances:
-
-```yaml
-dnscrypt-proxy-backup:
-  container_name: dnscrypt-proxy-backup
-  image: klutchell/dnscrypt-proxy:latest
-  networks:
-    nginx_network:
-      ipv4_address: 172.XX.0.13
-  # ... same config as primary
-```
-
-Then configure Pi-hole with multiple upstreams:
-```yaml
-FTLCONF_dns_upstreams: 172.XX.0.12#5053;172.XX.0.13#5053
-```
-
-##### Geographic Load Balancing
-For multiple location deployments, consider:
-- Regional DNSCrypt server selection
-- Latency-based server prioritization
-- Automatic failover mechanisms
+#### ~~2. High Availability Setup~~ ✅ Done (2026-10-05), not adopted
+Redundancy already exists, and at a better level than proposed. Unraid and the Pi each run a full Pi-hole → DNSCrypt-Proxy chain, and the router hands out both. DNSCrypt-Proxy already balances across seven servers by latency and drops failed ones, which covers the "geographic load balancing" idea for a single site. A second `dnscrypt-proxy` on the same host would only cover a crash, which `restart: always` handles. Cross-host upstreams would need 5053 back on the LAN. The remaining gap (Pi-hole up, `dnscrypt-proxy` down) is detected by the health check and depends on the alerting decision. See **README → Architecture Overview → Redundancy**.
 
 #### 3. Performance Scaling
 
@@ -100,6 +77,22 @@ Consider integrating with monitoring systems:
 - Prometheus + Grafana for metrics
 - ELK stack for log analysis
 - Alerting for service failures
+
+#### 4. Back Up the Raspberry Pi
+**Gap (verified 2026-10-05)**: The Time Capsule job copies only Unraid's `/boot` and `appdata`. The Pi has no backup at all: no cron jobs, nothing pulling from it. If its SD card dies, these are lost:
+- `~/homelab/network-services/.env`
+- WireGuard server keys and peer configs (`wireguard/config/`). Every client would need a new config for the Pi endpoint.
+- Portainer data
+
+Pi-hole settings are not at risk (Nebula-Sync recreates them from Unraid). The SWAG config is a copy of Unraid's.
+
+**Direction**: Unraid pulls from the Pi using the Unraid root SSH key, which is already authorized for `rpi3@`. Add a step to the existing **Backup to Time Capsule** User Script that rsyncs the Pi's `~/homelab/` (excluding logs and the dnscrypt resolver caches) into a folder under `appdata` before the Time Capsule copy runs. The Pi then rides along in the existing weekly backup with no new schedule.
+
+**To decide**:
+- whether to use `--rsync-path='sudo rsync'`. `rpi3` has passwordless sudo, and the top two levels of `wireguard/` and `pi-hole/` are readable as `rpi3`, but deeper container-owned files may not be;
+- whether the pull should keep running when the Pi is unreachable, and log that it was skipped.
+
+**Verify**: after one run, check the copy holds `wireguard/config/wg_confs/` and `.env`, then do a dry restore by diffing against the Pi.
 
 ### Low Priority
 
