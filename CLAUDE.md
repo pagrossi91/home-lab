@@ -199,6 +199,11 @@ wire. That Samba refuses SMBv1, so the old `vers=1.0,sec=none` mount fails with
 `mount error(95)`. The share still holds every secret on the server; anyone
 with its password or the disk itself has them all.
 
+**DNS guard:** Unraid and the Pi are the LAN's only DNS servers. The script stops
+`network-services` only while the Pi's Pi-hole answers (`PI_DNS_HOST` in
+`homelab-backup.conf`), and a watchdog restarts it early if the Pi stops
+answering. Never let both hosts' Pi-holes be down at once.
+
 ---
 
 ## 4. Stack conventions

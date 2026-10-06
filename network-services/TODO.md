@@ -76,12 +76,11 @@ Pi-hole settings are not at risk (Nebula-Sync recreates them from Unraid). The S
 
 **Direction**: Unraid pulls from the Pi using the Unraid root SSH key, which is already authorized for `rpi3@`. Add a step to the existing **Backup to Time Capsule** User Script that rsyncs the Pi's `~/homelab/` (excluding logs and the dnscrypt resolver caches) into a folder under `appdata` before the Time Capsule copy runs. The Pi then rides along in the existing weekly backup with no new schedule.
 
-**Constraint**: Unraid and the Pi must never be down at the same time. They are the LAN's only two DNS servers, so the internet drops when both are. The Unraid backup stops all Unraid stacks, so the Pi pull must not stop or restart anything on the Pi, and the Pi's Pi-hole must be up for the whole run.
+**Constraint**: Unraid and the Pi must never be down at the same time. They are the LAN's only two DNS servers, so the internet drops when both are. The backup already guards its own side: it stops Unraid's `network-services` only while the Pi answers DNS (README → Redundancy). The Pi pull must not stop or restart anything on the Pi.
 
 **To decide**:
 - whether to use `--rsync-path='sudo rsync'`. `rpi3` has passwordless sudo, and the top two levels of `wireguard/` and `pi-hole/` are readable as `rpi3`, but deeper container-owned files may not be;
-- whether the pull should keep running when the Pi is unreachable, and log that it was skipped;
-- whether the backup should check that the Pi's Pi-hole answers DNS before stopping Unraid's stacks, and skip stopping `network-services` (or the whole run) if it doesn't.
+- whether the pull should keep running when the Pi is unreachable, and log that it was skipped.
 
 **Verify**: after one run, check the copy holds `wireguard/config/wg_confs/` and `.env`, then do a dry restore by diffing against the Pi.
 

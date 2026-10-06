@@ -84,8 +84,8 @@ Both should print `closed`.
 
 **Never take both DNS hosts down at once.** The router hands out only the two Pi-holes, so while both are down nothing on the LAN resolves names and the internet is effectively gone. That includes the browser you would use to fix it. Anything that stops or restarts `network-services` must be staggered between the hosts:
 - **Manual work**: finish on one host, check that it answers (`dig @<LAN_IP> example.com`), then start on the other.
-- **The weekly Time Capsule backup** stops every Unraid stack (`STOP_STACKS=1`). The Pi's Pi-hole must be up for the whole run.
-- **Watchtower** restarts any container it updates. Both hosts run the same compose file, so give them different schedules.
+- **The weekly Time Capsule backup** stops every Unraid stack (`STOP_STACKS=1`). Before stopping `network-services` it checks that the Pi's Pi-hole resolves a name, retrying for 10 minutes. If the Pi never answers, `network-services` stays up and is copied live. While it is down, a watchdog checks the Pi every 30 s and brings `network-services` back after three misses.
+- **Watchtower** restarts any container it updates. `WATCHTOWER_SCHEDULE` in each host's `.env` keeps them apart: Unraid at 03:00, the Pi at 02:00.
 
 ### Service Dependencies
 ```
