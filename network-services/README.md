@@ -82,6 +82,11 @@ for p in 444 5053; do timeout 2 bash -c "echo >/dev/tcp/<PI_LAN_IP>/$p" 2>/dev/n
 
 Both should print `closed`.
 
+**Never take both DNS hosts down at once.** The router hands out only the two Pi-holes, so while both are down nothing on the LAN resolves names and the internet is effectively gone. That includes the browser you would use to fix it. Anything that stops or restarts `network-services` must be staggered between the hosts:
+- **Manual work**: finish on one host, check that it answers (`dig @<LAN_IP> example.com`), then start on the other.
+- **The weekly Time Capsule backup** stops every Unraid stack (`STOP_STACKS=1`). The Pi's Pi-hole must be up for the whole run.
+- **Watchtower** restarts any container it updates. Both hosts run the same compose file, so give them different schedules.
+
 ### Service Dependencies
 ```
 Internet → Router → Pi-hole → DNSCrypt Proxy → Encrypted DNS Providers
