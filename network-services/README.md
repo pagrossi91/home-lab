@@ -1053,7 +1053,7 @@ nmap -p 80,443 your-external-ip
 
 **Issue**: Browser shows a bad/expired certificate, and `docker logs swag` shows `Renewal configuration file ... is broken` / `expected .../cert.pem to be a symlink`
 
-Certbot requires every file in `etc/letsencrypt/live/<domain>/` to be a **symlink** into `etc/letsencrypt/archive/<domain>/`. The Time Capsule backup copies with `rsync -L` (SMBv1 can't store symlinks), so a SWAG config restored from backup comes back with plain files, and renewal silently stops until the cert expires. Re-link to the highest-numbered archive files and restart:
+Certbot requires every file in `etc/letsencrypt/live/<domain>/` to be a **symlink** into `etc/letsencrypt/archive/<domain>/`. The Time Capsule backup copies with `rsync -L` (symlinks are flattened into plain files), so a SWAG config restored from backup comes back with plain files, and renewal silently stops until the cert expires. Re-link to the highest-numbered archive files and restart:
 
 ```bash
 cd ./swag/config/etc/letsencrypt/live/${DOMAIN}/

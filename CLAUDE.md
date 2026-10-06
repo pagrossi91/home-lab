@@ -193,11 +193,11 @@ regenerable bulk (`.git`, `MediaCover/`, `pihole-FTL.db`, `gravity*.db`,
 Immich ML cache, logs, Plex cache). Plex `Metadata/` and `Plug-in Support/` are
 **kept** — the latter holds watch history and is not regenerable.
 
-**Accepted risk:** the Time Capsule only speaks SMBv1, so it is mounted
-`vers=1.0,sec=none` — unauthenticated, readable by any LAN device, and it holds
-every secret on the server. This is a known trade-off; the LAN is trusted.
-Re-evaluate if the LAN's trust boundary changes (guest Wi-Fi bridged, IoT VLAN
-merged, a device compromised).
+**Transport:** the Time Capsule runs its own Samba server (since 2026-09), so
+it is mounted `vers=3.1.1,seal`: password-authenticated and encrypted on the
+wire. That Samba refuses SMBv1, so the old `vers=1.0,sec=none` mount fails with
+`mount error(95)`. The share still holds every secret on the server; anyone
+with its password or the disk itself has them all.
 
 ---
 
