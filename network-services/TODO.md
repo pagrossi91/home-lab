@@ -66,23 +66,8 @@ Redundancy already exists, and at a better level than proposed. Unraid and the P
 #### ~~3. Performance Scaling~~ ✅ Done (2026-10-06), not adopted
 Nothing to tune. The proposed `dns_cache_size: 10000` is already Pi-hole v6's default, and `dns_cache_insert_strategy` doesn't exist in FTL. Neither host's cache has evicted a record: Unraid inserted about 33,000 and held about 2,700 at once. FTL uses 3.5% of the Pi's memory. Stale-while-refresh (`dns.cache.optimizer`) already answers many queries from cache. The resource-monitoring half duplicates **Monitoring and Alerting → Container Resource Monitoring** and waits on the alerting decision. See **README → Pi-hole DNS Filter → Troubleshooting** for the eviction check.
 
-#### 4. Back Up the Raspberry Pi
-**Gap (verified 2026-10-05)**: The Time Capsule job copies only Unraid's `/boot` and `appdata`. The Pi has no backup at all: no cron jobs, nothing pulling from it. If its SD card dies, these are lost:
-- `~/homelab/network-services/.env`
-- WireGuard server keys and peer configs (`wireguard/config/`). Every client would need a new config for the Pi endpoint.
-- Portainer data
-
-Pi-hole settings are not at risk (Nebula-Sync recreates them from Unraid). The SWAG config is a copy of Unraid's.
-
-**Direction**: Unraid pulls from the Pi using the Unraid root SSH key, which is already authorized for `rpi3@`. Add a step to the existing **Backup to Time Capsule** User Script that rsyncs the Pi's `~/homelab/` (excluding logs and the dnscrypt resolver caches) into a folder under `appdata` before the Time Capsule copy runs. The Pi then rides along in the existing weekly backup with no new schedule.
-
-**Constraint**: Unraid and the Pi must never be down at the same time. They are the LAN's only two DNS servers, so the internet drops when both are. The backup already guards its own side: it stops Unraid's `network-services` only while the Pi answers DNS (README → Redundancy). The Pi pull must not stop or restart anything on the Pi.
-
-**To decide**:
-- whether to use `--rsync-path='sudo rsync'`. `rpi3` has passwordless sudo, and the top two levels of `wireguard/` and `pi-hole/` are readable as `rpi3`, but deeper container-owned files may not be;
-- whether the pull should keep running when the Pi is unreachable, and log that it was skipped.
-
-**Verify**: after one run, check the copy holds `wireguard/config/wg_confs/` and `.env`, then do a dry restore by diffing against the Pi.
+#### ~~4. Back Up the Raspberry Pi~~ ✅ Done (2026-10-06)
+The weekly **Backup to Time Capsule** job now pulls the Pi's `~/homelab/network-services` over SSH into `appdata/rpi3-backup/` (chmod 700) before Unraid's stacks stop, and the Time Capsule copy of `appdata` carries it. The pull runs as `rpi3` without sudo, so rsync reports anything it can't read. It is read-only on the Pi, so the Pi's DNS stays up. It uses the main exclude list (Pi-hole databases, `listsCache/`, logs) and also skips `swag/` (a copy of Unraid's) and Portainer's root-only `backups/`. A Pi that can't be reached is logged as an error and the rest of the backup continues. First pull: 114 files, 3 MB, about 1 s. A checksum comparison against the Pi was identical, with `.env`, `wg_confs/wg0.conf` and all seven peers present. Restore: rsync `appdata/rpi3-backup/network-services/` back to the Pi's `~/homelab/network-services/`, then `docker compose up -d`.
 
 ### Low Priority
 

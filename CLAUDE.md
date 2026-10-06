@@ -188,8 +188,10 @@ Change the schedule in the Unraid UI. If editing `schedule.json` by hand, also
 copy it to `/tmp/user.scripts/schedule.json` — the runtime reads the cached copy
 and only refreshes it when missing.
 
-It rsyncs `/boot/` and `/mnt/user/appdata/` to the Time Capsule, excluding
-regenerable bulk (`.git`, `MediaCover/`, `pihole-FTL.db`, `gravity*.db`,
+It first pulls the Raspberry Pi's `~/homelab/network-services` into
+`/mnt/user/appdata/rpi3-backup/` (read-only on the Pi, over SSH as `rpi3`).
+It then rsyncs `/boot/` and `/mnt/user/appdata/` to the Time Capsule, excluding
+regenerable bulk (`.git`, `MediaCover/`, `pihole-FTL.db`, `gravity*.db`, `listsCache/`,
 Immich ML cache, logs, Plex cache). Plex `Metadata/` and `Plug-in Support/` are
 **kept** — the latter holds watch history and is not regenerable.
 
