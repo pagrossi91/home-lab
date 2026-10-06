@@ -178,10 +178,20 @@ networks:
     external: true
   # Private per-app backends: databases/caches stay off the shared nginx_network so a
   # compromised public-facing container can't reach them. See network-services README → Network Segmentation.
+  # Subnets pinned: an app sees SWAG arrive from its network's gateway (host port path),
+  # and its trusted-proxy list names that gateway. Docker-assigned subnets change on `down`.
   immich_backend:
     name: immich_backend
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+          gateway: 172.22.0.1
   nextcloud_backend:
     name: nextcloud_backend
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1 # in Nextcloud's trusted_proxies
 
 # volumes:
 #   model-cache:
