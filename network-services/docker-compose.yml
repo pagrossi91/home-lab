@@ -211,7 +211,7 @@ services:
       - '/var/run/docker.sock:/var/run/docker.sock' # this directory tells watchtower what containers are available to update
       # config.json only necessary if using custom docker respository (GitHub, etc). Not currently in use but mounting the drive anyway
       - '../../.docker/config.json:/config.json' # run `touch ../../.docker/config.json` first unless you like errors
-    command: --schedule '0 0 3 * * *' # updates daily at 0300
+    command: --schedule '${WATCHTOWER_SCHEDULE}' # differs per host (see .env) so both Pi-holes never restart at once
     # command: --interval 30 # updates every 30 seconds (for troubleshooting)
     restart: unless-stopped
 
