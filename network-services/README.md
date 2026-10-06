@@ -670,6 +670,18 @@ dig @${PIHOLE_STATIC_IP} doubleclick.net
 # Should return 0.0.0.0 if blocking works
 ```
 
+**Issue**: Lookups seem slow. Is the cache too small?
+
+The cache holds 10,000 records (Pi-hole v6's default, `dns.cache.size`). It is only too small if it **evicts**, which means dropping a live record to make room. Expired records are replaced as they lapse, and that's normal. Check on each host:
+```bash
+docker exec pihole sh -c 'sid=$(curl -s -X POST http://127.0.0.1/api/auth \
+    -d "{\"password\":\"$FTLCONF_webserver_api_password\"}" | sed -n "s/.*\"sid\":\"\([^\"]*\)\".*/\1/p")
+  curl -s -H "sid: $sid" http://127.0.0.1/api/info/metrics | grep -o "\"cache\":{[^[]*"
+  curl -s -X DELETE -H "sid: $sid" http://127.0.0.1/api/auth'
+# "evicted":0 → the size is fine. Raise FTLCONF_dns_cache_size only if evictions keep climbing.
+```
+On 2026-10-06 neither host had evicted anything. Unraid had inserted about 33,000 records and held about 2,700 at once. The defaults stay. `dns.cache.optimizer` (3600 s) already answers from a just-expired record while it refreshes in the background (`CACHE_STALE` in the query log). Slow *uncached* lookups come from DNSCrypt-Proxy's server choice, not from Pi-hole (see DNSCrypt Proxy → Server Selection Strategy).
+
 **Reference**: [Pi-hole Docker Documentation](https://github.com/pi-hole/docker-pi-hole#readme)
 
 ---

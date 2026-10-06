@@ -58,25 +58,13 @@ Pi-hole and Watchtower already had built-in checks. Added `dnscrypt-proxy` (`dns
 ### Medium Priority
 
 #### ~~1. Network Segmentation~~ ✅ Done (2026-10-05), Stage 1
-A container on `nginx_network` could reach Immich's Redis (no password), Postgres and ML API, and Nextcloud's MariaDB. Those now sit on private `immich_backend` and `nextcloud_backend` networks; only `immich_server` and `nextcloud` remain on `nginx_network` for SWAG. The proposed management/DNS/external split was not adopted: Portainer, Pi-hole and the *arrs are published on host ports for LAN access, so a compromised container reaches them through the LAN IP whichever Docker network they're on. Closing that path is Stage 2: **Security Hardening → Restrict Container → LAN/Host Traffic**. See **README → Network Configuration Deep Dive → Network Segmentation**.
+A container on `nginx_network` could reach Immich's Redis (no password), Postgres and ML API, and Nextcloud's MariaDB. Those now sit on private `immich_backend` and `nextcloud_backend` networks; `immich_server` and `nextcloud` have since left `nginx_network` too: SWAG reaches them by host port. The proposed management/DNS/external split was not adopted: Portainer, Pi-hole and the *arrs are published on host ports for LAN access, so a compromised container reaches them through the LAN IP whichever Docker network they're on. Closing that path is Stage 2: **Security Hardening → Restrict Container → LAN/Host Traffic**. See **README → Network Configuration Deep Dive → Network Segmentation**.
 
 #### ~~2. High Availability Setup~~ ✅ Done (2026-10-05), not adopted
-Redundancy already exists, and at a better level than proposed. Unraid and the Pi each run a full Pi-hole → DNSCrypt-Proxy chain, and the router hands out both. DNSCrypt-Proxy already balances across seven servers by latency and drops failed ones, which covers the "geographic load balancing" idea for a single site. A second `dnscrypt-proxy` on the same host would only cover a crash, which `restart: always` handles. Cross-host upstreams would need 5053 back on the LAN. The remaining gap (Pi-hole up, `dnscrypt-proxy` down) is detected by the health check and depends on the alerting decision. See **README → Architecture Overview → Redundancy**.
+Redundancy already exists, and at a better level than proposed. Unraid and the Pi each run a full Pi-hole → DNSCrypt-Proxy chain, and the router hands out both. DNSCrypt-Proxy already balances across seven servers by latency and drops failed ones, which covers the "geographic load balancing" idea for a single site. A second `dnscrypt-proxy` on the same host would only cover a crash, which the restart policy handles. Cross-host upstreams would need 5053 back on the LAN. The remaining gap (Pi-hole up, `dnscrypt-proxy` down) is detected by the health check and depends on the alerting decision. See **README → Architecture Overview → Redundancy**.
 
-#### 3. Performance Scaling
-
-##### Pi-hole Performance Tuning
-```yaml
-# In docker-compose.yml environment section
-FTLCONF_dns_cache_size: 10000  # Increase from default
-FTLCONF_dns_cache_insert_strategy: LRU  # Optimize cache strategy
-```
-
-##### Resource Monitoring Integration
-Consider integrating with monitoring systems:
-- Prometheus + Grafana for metrics
-- ELK stack for log analysis
-- Alerting for service failures
+#### ~~3. Performance Scaling~~ ✅ Done (2026-10-06), not adopted
+Nothing to tune. The proposed `dns_cache_size: 10000` is already Pi-hole v6's default, and `dns_cache_insert_strategy` doesn't exist in FTL. Neither host's cache has evicted a record: Unraid inserted about 33,000 and held about 2,700 at once. FTL uses 3.5% of the Pi's memory. Stale-while-refresh (`dns.cache.optimizer`) already answers many queries from cache. The resource-monitoring half duplicates **Monitoring and Alerting → Container Resource Monitoring** and waits on the alerting decision. See **README → Pi-hole DNS Filter → Troubleshooting** for the eviction check.
 
 #### 4. Back Up the Raspberry Pi
 **Gap (verified 2026-10-05)**: The Time Capsule job copies only Unraid's `/boot` and `appdata`. The Pi has no backup at all: no cron jobs, nothing pulling from it. If its SD card dies, these are lost:
