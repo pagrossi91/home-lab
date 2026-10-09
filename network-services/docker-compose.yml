@@ -6,11 +6,19 @@ networks:
       config:
         - subnet: ${NGINX_NETWORK_SUBNET}
           gateway: ${NGINX_NETWORK_GATEWAY}
+  wg-network:
+    name: "wg_network"
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${WG_NETWORK_SUBNET}
+          gateway: ${WG_NETWORK_GATEWAY}
 
 services: 
   duckdns:
     image: lscr.io/linuxserver/duckdns:latest
     container_name: duckdns
+    profiles: [unraid] # Both hosts share one WAN IP, so one updater is enough; cert renewal uses its own token (swag dns-conf)
     networks:
       - nginx_network
     environment:
@@ -24,57 +32,45 @@ services:
       - ${APPDATA_DIR}/duckdns/config:/config #optional
     restart: unless-stopped
 
-  # wireguard:
-  #   image: linuxserver/wireguard
-  #   container_name: wireguard
-  #   networks:
-  #     wg-pihole: 
-  #       ipv4_address: 172.30.0.3 # internal Docker address of wireguard
-  #       ipv6_address: fdd6:24e8:ea4e::3
-  #   environment:
-  #     PUID: ${LOCAL_USER}
-  #     PGID: ${LOCAL_USER}
-  #     TZ: ${TZ}
-  #     SERVERURL: ${DUCKDNS} #optional
-  #     SERVERPORT: 51820 #optional
-  #     PEERS: pgiphone, pgipad, pgmsi, lgiphone, lgipad, lgwork, misc1, misc2 # number, or list, of devices needing to connect to wireguard server
-  #     PEERDNS: 172.30.0.2 #optional # internal Docker address of pihole
-  #     INTERNAL_SUBNET: 10.13.13.0 #optional, ipv6 needs manual updating of conf files fd1a:d69f:1222::0/64
-  #     ALLOWEDIPS: 0.0.0.0/0, ::/0 #optional
-  #     PERSISTENTKEEPALIVE_PEERS: all
-  #     # LOG_CONFS: true
-  #   volumes:
-  #     - ./wireguard/wireguard-server/config:/config
-  #     - ./wireguard/lib/modules:/lib/modules
-  #   ports:
-  #     - 51820:51820/udp
-  #   cap_add:
-  #     - NET_ADMIN
-  #     - SYS_MODULE
-  #   dns: 
-  #     # - 192.168.1.99
-  #     - 172.30.0.2 # internal Docker address of pihole 
-  #   sysctls:
-  #     net.ipv4.conf.all.src_valid_mark: 1
-  #     net.ipv4.ip_forward: 1
-  #     # net.ipv6.conf.all.forwarding: 1
-  #     net.ipv6.conf.all.disable_ipv6: 0 # https://bodhilinux.boards.net/thread/450/wireguard-rtnetlink-answers-permission-denied
-  #     net.ipv6.conf.default.disable_ipv6: 0
-  #     net.ipv6.conf.lo.disable_ipv6: 0
-  #     # net.ipv6.conf.default.forwarding: 1
-  #     net.ipv6.conf.all.forwarding: 1
-  #     net.ipv6.conf.all.proxy_ndp: 1
-  #     # net.ipv6.conf.ens5.accept_ra: 2
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - phiole
-  #     - wg-ipv6-helper
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard
+    networks:
+      wg-network:
+        ipv4_address: ${WG_STATIC_IP}
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+      SERVERURL: ${DOMAIN}
+      SERVERPORT: ${WG_SERVERPORT} # what clients dial; differs per host (see .env)
+      PEERS: pgiphone,pgipad,plmba,lgiphone,lgipad,misc1,misc2
+      PEERDNS: ${PIHOLE_UNRAID}, ${PIHOLE_RPI3}  # Clients can use both. Same order on both hosts
+      INTERNAL_SUBNET: ${INTERNAL_SUBNET}
+      ALLOWEDIPS: 0.0.0.0/0
+      PERSISTENTKEEPALIVE_PEERS: all
+      LOG_CONFS: true
+    volumes:
+      - ${APPDATA_DIR}/wireguard/config:/config
+      - ${APPDATA_DIR}/wireguard/lib/modules:/lib/modules
+    ports:
+      - ${WG_SERVERPORT}:51820/udp
+    dns:  # Use both pi-holes for container's own DNS
+      - ${PIHOLE_UNRAID}
+      - ${PIHOLE_RPI3}
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv4.ip_forward=1
+    restart: unless-stopped
 
   # https://github.com/pi-hole/docker-pi-hole/blob/master/README.md
   pihole:
     container_name: pihole
     image: pihole/pihole:latest
-    hostname: pihole-docker
+    hostname: pihole-${HOST_TAG}
     networks:
       nginx_network:
         ipv4_address: ${PIHOLE_STATIC_IP} # internal Docker address of pihole
@@ -87,8 +83,7 @@ services:
       - "53:53/udp"
       # - "67:67/udp" # Necessary when DHCP on its own but not necessary when used in conjunction with dhcp-helper. dhcp-helper is set to listen on UDP port 67 for DHCP requests instead which are then forwarded to Pi-Hole
       - "81:80/tcp"
-      # Default HTTPS Port. FTL will generate a self-signed certificate
-      - "444:443/tcp"
+      # 443 (self-signed HTTPS) not published: SWAG terminates TLS and reaches pihole:80 directly
     environment:
       FTLCONF_webserver_api_password: ${PIHOLE_WEBPASSWORD}
       FTLCONF_dns_upstreams:  ${DNSCRYPTPROXY_STATIC_IP}#5053  # 1.1.1.1;1.0.0.1 #;2606:4700:4700::1111;2606:4700:4700::1001 # Cloudfare DNS; IPv4 and IPv6
@@ -116,16 +111,18 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=false" # excludes container from watchtower update
 
-  # nebula-sync: # Sync pi-holes
-  #   image: ghcr.io/lovelaze/nebula-sync:latest
-  #   container_name: nebula-sync
-  #   environment:
-  #     TZ: ${TZ}
-  #     PRIMARY: ${PIHOLE_1_URL}|${PIHOLE_1_PWD}
-  #     REPLICAS: ${PIHOLE_2_URL}|${PIHOLE_2_PWD}
-  #     FULL_SYNC: true
-  #     CRON: 0 * * * *
-  #     RUN_GRAVITY: true
+  nebula-sync: # Copies Pi-hole settings from the Unraid Pi-hole (primary) to the Pi (replica)
+    image: ghcr.io/lovelaze/nebula-sync:latest
+    container_name: nebula-sync
+    profiles: [unraid]
+    environment:
+      TZ: ${TZ}
+      PRIMARY: ${PIHOLE_1_URL}|${PIHOLE_1_PWD}
+      REPLICAS: ${PIHOLE_2_URL}|${PIHOLE_2_PWD}
+      FULL_SYNC: true
+      CRON: 0 * * * *
+      RUN_GRAVITY: true
+    restart: unless-stopped
 
   # Runs a DHCP relay container that listens for DHCP discovery requests on the LAN and forwards them to Pihole on Docker’s internal network. Required with user defined network
   # dhcphelper: 
@@ -133,7 +130,7 @@ services:
   #   build: ./dhcp-helper
   #   restart: unless-stopped
   #   network_mode: host # Resides on host network so it can listen for DHCP discovery requests from UDP port 67
-  #   command: -s 172.30.0.2 # Forwards to Internal Docker Address of pihole
+  #   command: -s ${PIHOLE_STATIC_IP} # Forwards to Internal Docker Address of pihole
   #   labels:
   #     - "com.centurylinklabs.watchtower.enable=false" # excludes container from watchtower update
   #   cap_add:
@@ -148,33 +145,31 @@ services:
   #     - NET_ADMIN
   #     - SYS_MODULE
 
-  dnscrypt-server:
-    image: jedisct1/dnscrypt-server:latest
-    container_name: dnscrypt-server
-    restart: always
-    networks:
-      nginx_network:
-        ipv4_address: ${DNSCRYPTSERVER_STATIC_IP}
-    # command: "init -N ${DOMAIN} -E '${DNSCRYPTSERVER_STATIC_IP}:5443' -A"
-    command: "start"
-    ports:
-        - '5443:5443/udp'
-        - '5443:5443/tcp'
-    volumes:
-      - ${APPDATA_DIR}/dnscrypt/server/keys:/opt/encrypted-dns/etc/keys
-      - ${APPDATA_DIR}/dnscrypt/server/unbound:/opt/unbound/etc/unbound
-    environment:
-      TZ: ${TZ}
-      PUID: ${LOCAL_USER}
-      PGID: ${LOCAL_USER}
+  # dnscrypt-server:
+  #   image: jedisct1/dnscrypt-server:latest
+  #   container_name: dnscrypt-server
+  #   restart: always
+  #   networks:
+  #     nginx_network:
+  #       ipv4_address: ${DNSCRYPTSERVER_STATIC_IP}
+  #   # command: "init -N ${DOMAIN} -E '${DNSCRYPTSERVER_STATIC_IP}:5443' -A"
+  #   command: "start"
+  #   ports:
+  #       - '5443:5443/udp'
+  #       - '5443:5443/tcp'
+  #   volumes:
+  #     - ${APPDATA_DIR}/dnscrypt/server/keys:/opt/encrypted-dns/etc/keys
+  #     - ${APPDATA_DIR}/dnscrypt/server/unbound:/opt/unbound/etc/unbound
+  #   environment:
+  #     TZ: ${TZ}
+  #     PUID: ${LOCAL_USER}
+  #     PGID: ${LOCAL_USER}
 
   dnscrypt-proxy:
     container_name: dnscrypt-proxy
     image: klutchell/dnscrypt-proxy:latest
     user: "${LOCAL_USER}:${LOCAL_USER}"
-    ports:
-      - "5053:5053/tcp"
-      - "5053:5053/udp"
+    # No host port: Pi-hole queries it over nginx_network. Publishing 5053 would give LAN clients an unfiltered resolver
     networks:
       nginx_network:
         ipv4_address: ${DNSCRYPTPROXY_STATIC_IP}
@@ -184,17 +179,24 @@ services:
     volumes:
       - ${APPDATA_DIR}/dnscrypt/proxy/config:/config
     restart: unless-stopped
-    depends_on:
-      - duckdns
+    healthcheck: # Status only; Docker does not restart unhealthy containers. See README → Health Checks
+      test: ["CMD", "dnsprobe", "example.com", "127.0.0.1:5053"] # exec form: image has no shell or dig; dnsprobe ships in it
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # depends_on:
+      # - duckdns
       # - dnscrypt-server # Only necessary if this is the only DNSCrypt server configured in your DNSCrypt Proxy.
 
   watchtower:
     container_name: watchtower
     image: containrrr/watchtower:latest
-    hostname: watchtower-docker
+    hostname: watchtower-${HOST_TAG}
     networks:
       - nginx_network
     environment:
+      DOCKER_API_VERSION: 1.49
       TZ: ${TZ}
       WATCHTOWER_CLEANUP: 'true'
       # send email notification of update
@@ -209,13 +211,14 @@ services:
       - '/var/run/docker.sock:/var/run/docker.sock' # this directory tells watchtower what containers are available to update
       # config.json only necessary if using custom docker respository (GitHub, etc). Not currently in use but mounting the drive anyway
       - '../../.docker/config.json:/config.json' # run `touch ../../.docker/config.json` first unless you like errors
-    command: --schedule '0 0 3 * * *' # updates daily at 0300
-    #command: --interval 30 # updates every 30 seconds (for troubleshooting)
+    command: --schedule '${WATCHTOWER_SCHEDULE}' # differs per host (see .env) so both Pi-holes never restart at once
+    # command: --interval 30 # updates every 30 seconds (for troubleshooting)
     restart: unless-stopped
 
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
+    hostname: portainer-${HOST_TAG}
     networks:
       - nginx_network
     command: -H unix:///var/run/docker.sock
@@ -226,11 +229,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${APPDATA_DIR}/portainer/data:/data
-    restart: always
+    restart: unless-stopped
 
   swag:
     image: lscr.io/linuxserver/swag:latest
     container_name: swag
+    profiles: [unraid, failover] # Pi: standby only. Start with `docker compose --profile failover up -d swag`
     networks:
       nginx_network:
         ipv4_address: ${SWAG_STATIC_IP}
@@ -252,7 +256,13 @@ services:
       - ${APPDATA_DIR}/swag/config:/config
     ports:
       - 443:443
-      - 80:80 #optional
+      - 80:80 # optional; LAN-only HTTP->HTTPS redirect. Not forwarded on the router (DNS validation needs no port 80)
     restart: unless-stopped
-    depends_on:
-      - duckdns
+    healthcheck: # Status only. Port 80 default server answers 301; HTTPS to localhost would fail (not on cert, unknown names rejected)
+      test: ["CMD", "curl", "-fso", "/dev/null", "http://127.0.0.1/"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # depends_on:
+    #   - duckdns

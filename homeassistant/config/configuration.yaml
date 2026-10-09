@@ -1,18 +1,19 @@
-# Set Home Assistant Port
-http:
-  server_port: 8123
-  ip_ban_enabled: true # blocks unathorized ips from accessing HA
-  login_attempts_threshold: 5 # number of attempts before ip is banned
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - !secret server_IP # Local LAN
-    - 172.18.0.0/24 # Docker nginx network
-    - 172.21.0.0/24 # Docker home assistant network
+# # Set Home Assistant Port
+# http:
+#   server_port: 8123
+#   ip_ban_enabled: true # blocks unathorized ips from accessing HA
+#   login_attempts_threshold: 5 # number of attempts before ip is banned
+#   use_x_forwarded_for: true
+#   trusted_proxies:
+#     - !secret server_IP # Local LAN
+#     - 172.18.0.0/24 # Docker nginx network
+#     - 172.21.0.0/24 # Docker home assistant network
+#     - !secret rpi3_IP
 
-# Enable forwarding to DuckDNS subdomain
-duckdns:
-  domain: !secret duckdns_domain
-  access_token: !secret duckdns_token
+# # Enable forwarding to DuckDNS subdomain
+# duckdns:
+#   domain: !secret duckdns_domain
+#   access_token: !secret duckdns_token
 
 
 # Configure a default setup of Home Assistant (frontend, api, etc)
@@ -38,7 +39,10 @@ tts:
   - platform: google_translate
 
 group: !include groups.yaml
-automation: !include automations.yaml
+# The UI automation editor owns automations.yaml and cannot parse !secret there.
+# Automations that need a secret go in manual_automations.yaml (read-only in UI).
+automation ui: !include automations.yaml
+automation manual: !include manual_automations.yaml
 script: !include scripts.yaml
 scene: !include scenes.yaml
 
@@ -52,7 +56,7 @@ scene: !include scenes.yaml
 
 # Adds zwave and zigbee functionality from GoControl Linear HUSBZB-1 USB stick
 # zwave:
-  # usb_path: /zwaveusbstick
+#   usb_path: /zwaveusbstick
 zha:
   # usb_path: /zigbeeusbstick
   database_path: /config/zigbee.db
@@ -68,14 +72,14 @@ recorder:
   db_url: !secret db_url
 
 # # Use influxdb and grafana for visualizations
-influxdb:
-  api_version: 2
-  host: influxdb
-  ssl: false
-  port: 8086
-  token: !secret influx_token
-  organization: homelab
-  bucket: homeassistant
+# influxdb: # Configuring influxdb in configuration.yaml is being deprecated
+#   api_version: 2
+#   host: influxdb
+#   ssl: false
+#   port: 8086
+#   token: !secret influx_token
+#   organization: homelab
+#   bucket: homeassistant
 
 # # Monitor qBittorrent
 # sensor:

@@ -32,9 +32,14 @@ services:
     volumes:
       - ${APPDATA_DIR}/plex/database:/config
       - ${APPDATA_DIR}/plex/transcode/temp:/transcode
-      - ${MEDIADATA_DIR}/servarr_data/media/:/data/media/
-      - ${MEDIADATA_DIR}/cloud_data/nextcloud/nextcloud/files/Documents/Grossi Family/Videos/:/data/homevideos
-    restart: unless-stopped
+      - ${ARRAY_DIR}/servarr_data/media/:/data/media/
+      - ${ARRAY_DIR}/cloud_data/nextcloud/nextcloud/files/Documents/Grossi Family/Videos/:/data/homevideos
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'      # Can use more when not competing
+          memory: 2G
 
   vpn:
     image: qmcgaw/gluetun # https://github.com/qdm12/gluetun-wiki/blob/main/setup/providers/nordvpn.md
@@ -49,7 +54,7 @@ services:
       - 8080:8080 # QBittorrent web port
       - 6881:6881 # QBittorrent
       - 6881:6881/udp # QBittorrent
-      - 8085:8085 # sabnzbd
+      # - 8085:8085 # sabnzbd
       - 5030:5030 #slskd, http webport
       - 5031:5031 #slskd, https webport
       - 50300:50300 #slskd, listening for incoming connections
@@ -63,18 +68,18 @@ services:
     volumes:
       - ${APPDATA_DIR}/gluetun:/gluetun
     environment:
-      VPN_SERVICE_PROVIDER: nordvpn
       VPN_TYPE: wireguard
-      WIREGUARD_PRIVATE_KEY: ${Nord_PRIVATEKEY2025}
+      VPN_SERVICE_PROVIDER: nordvpn # or protonvpn
+      WIREGUARD_PRIVATE_KEY: ${Nord_PRIVATEKEY}
       SERVER_COUNTRIES: United States
-      SERVER_HOSTNAMES: ${P2P_SERVERS}
+      SERVER_HOSTNAMES: ${Nord_P2P_SERVERS}   
       # HTTP proxy server allows Prowlarr access to Qbittorrent from a different network (i.e. not going through the VPN)
       HTTPPROXY: on
       HTTPPROXY_LISTENING_ADDRESS: :8118
       HTTPPROXY_USERL: ${HTTPPROXY_USERL}
       HTTPPROXY_PASSWORD: ${HTTPPROXY_PASSWORD}
       HTTPPROXY_STEALTH: on
-    restart: unless-stopped
+    restart: always
 
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent
@@ -89,10 +94,10 @@ services:
     volumes:
       - ${APPDATA_DIR}/qbittorrent/config:/config
       - ${APPDATA_DIR}/qbittorrent/torrent_files:/torrent_files/
-      - ${MEDIADATA_DIR}/servarr_data/torrents:/data/torrents/
+      - ${ARRAY_DIR}/servarr_data/torrents:/data/torrents/
     depends_on:
       - vpn
-    restart: unless-stopped
+    restart: always
 
   prowlarr: # Set trackers
     image: lscr.io/linuxserver/prowlarr:latest
@@ -109,7 +114,7 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/prowlarr:/config
-    restart: unless-stopped
+    restart: always
     ports:
       - 9696:9696
     depends_on:
@@ -120,7 +125,7 @@ services:
     container_name: radarr
     image: lscr.io/linuxserver/radarr:latest
     hostname: radarr-docker
-    restart: unless-stopped
+    restart: always
     networks:
       vpn:
         ipv4_address: ${RADARR_STATIC_IP}
@@ -136,7 +141,32 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/radarr:/config
-      - ${MEDIADATA_DIR}/servarr_data/:/data
+      - ${ARRAY_DIR}/servarr_data/:/data
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
+  radarr4k: # Movies
+    container_name: radarr4k
+    image: lscr.io/linuxserver/radarr:latest
+    hostname: radarr4k-docker
+    restart: always
+    networks:
+      vpn:
+        ipv4_address: ${RADARR4K_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    logging:
+      driver: json-file
+    ports:
+      - 7879:7878
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    volumes:
+      # - /etc/localtime:/etc/localtime:ro
+      - ${APPDATA_DIR}/radarr4k:/config
+      - ${ARRAY_DIR}/servarr_data/:/data
     depends_on:
       - prowlarr
       - qbittorrent
@@ -145,7 +175,7 @@ services:
     container_name: sonarr
     image: lscr.io/linuxserver/sonarr:latest
     hostname: sonarr-docker
-    restart: unless-stopped
+    restart: always
     networks:
       vpn:
         ipv4_address: ${SONARR_STATIC_IP}
@@ -161,36 +191,62 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/sonarr:/config
-      - ${MEDIADATA_DIR}/servarr_data/:/data
+      - ${ARRAY_DIR}/servarr_data/:/data
     depends_on:
       - prowlarr
       - qbittorrent
 
-  overseerr: # Discover content
-    image: lscr.io/linuxserver/overseerr:latest
-    container_name: overseerr
+  sonarr4k: # TV shows
+    container_name: sonarr4k
+    image: lscr.io/linuxserver/sonarr:latest
+    hostname: sonarr4k-docker
+    restart: always
     networks:
       vpn:
-        ipv4_address: ${OVERSEERR_STATIC_IP}
-      nginx_network: # For remote access
-        ipv4_address: 172.18.0.101 # Static Docker Overseerr IP address on nginx_network
+        ipv4_address: ${SONARR4K_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    logging:
+      driver: json-file
+    ports:
+      - 8990:8989
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
     volumes:
-      - ${APPDATA_DIR}/overseerr:/config
-    ports:
-      - 5055:5055
-    restart: unless-stopped
+      # - /etc/localtime:/etc/localtime:ro
+      - ${APPDATA_DIR}/sonarr4k:/config
+      - ${ARRAY_DIR}/servarr_data/:/data
     depends_on:
       - prowlarr
       - qbittorrent
-    
+
+  seerr: # Discover content
+    image: ghcr.io/seerr-team/seerr:latest
+    init: true
+    container_name: seerr
+    networks:
+      vpn:
+        ipv4_address: ${SEERR_STATIC_IP}
+      nginx_network: # For remote access
+        ipv4_address: 172.18.0.101 # Static Docker Seerr IP address on nginx_network
+    environment:
+      PUID: ${LOCAL_USER}
+      PGID: ${LOCAL_USER}
+      TZ: ${TZ}
+    volumes:
+      - ${APPDATA_DIR}/seerr:/app/config
+    ports:
+      - 5055:5055
+    restart: always
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
   bazarr: # Subtitles
     container_name: bazarr
     image: lscr.io/linuxserver/bazarr:latest
-    restart: unless-stopped
+    restart: always
     networks:
       vpn:
         ipv4_address: ${BAZARR_STATIC_IP}
@@ -206,18 +262,21 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/bazarr:/config
-      - ${MEDIADATA_DIR}/servarr_data/media:/data/media
+      - ${ARRAY_DIR}/servarr_data/media:/data/media
  
   sabnzbd: # Usenet
     container_name: sabnzbd
     image: lscr.io/linuxserver/sabnzbd:latest
-    restart: unless-stopped
-    network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
+    restart: always
+    networks:
+      vpn:
+        ipv4_address: ${SABNZBD_STATIC_IP}
+    # network_mode: service:vpn # relies on VPN service for network config. De facto 'kill switch'
     logging:
       driver: json-file
-    # ports:
+    ports:
       # - 8080:8080
-      # - 8085:8085 # Defined in vpn service
+      - 8085:8085 # Defined in vpn service
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -225,9 +284,9 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/sabnzbd:/config
-      - ${MEDIADATA_DIR}/servarr_data/usenet:/data/usenet/
-    depends_on:
-      - vpn
+      - ${ARRAY_DIR}/servarr_data/usenet:/data/usenet/
+    # depends_on:
+    #   - vpn
 
   # nzbget: # Redundant with Sabnzbd
   #   image: lscr.io/linuxserver/nzbget:latest
@@ -266,7 +325,7 @@ services:
   #   restart: unless-stopped
 
   recyclarr: # Sync Sonarr and Radarr to TRaSH Guide profiles
-    image: ghcr.io/recyclarr/recyclarr
+    image: ghcr.io/recyclarr/recyclarr:8
     container_name: recyclarr
     user: ${LOCAL_USER}:${LOCAL_USER}
     networks:
@@ -274,17 +333,18 @@ services:
     volumes:
       - ${APPDATA_DIR}/recyclarr:/config
     environment:
+      RECYCLARR_CREATE_CONFIG: false
       TZ: ${TZ}
     depends_on:
       - sonarr
       - radarr
-    restart: unless-stopped
+    restart: always
 
   lidarr-paul: # Music
     container_name: lidarr-paul
     image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
     hostname: lidarr-docker-paul
-    restart: unless-stopped
+    restart: always
     networks:
       vpn:
         ipv4_address: ${LIDARR_PAUL_STATIC_IP}
@@ -292,9 +352,14 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/lidarr/paul:/config
-      - ${MEDIADATA_DIR}/servarr_data/media/music/paul:/data
-      - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/shared
-      - ${MEDIADATA_DIR}/servarr_data/soulseek/downloads:/downloads
+      # Single mount of the whole tree, as sonarr/radarr do. Separate binds for
+      # library and downloads are distinct mount points to the kernel, so
+      # rename(2)/link(2) across them return EXDEV -- no atomic moves, no
+      # hardlinks. One mount also makes lidarr's paths match sabnzbd's, so no
+      # remote path mapping is needed.
+      #   root folders:  /data/media/music/paul, /data/media/music/shared
+      #   sab downloads: /data/usenet/music
+      - ${ARRAY_DIR}/servarr_data/:/data
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -304,13 +369,13 @@ services:
     depends_on:
       - prowlarr
       - qbittorrent
-      - slskd
+      # - slskd
 
   lidarr-lisa: # Music
     container_name: lidarr-lisa
     image: ghcr.io/linuxserver-labs/prarr:lidarr-plugins
     hostname: lidarr-docker-lisa
-    restart: unless-stopped
+    restart: always
     networks:
       vpn:
         ipv4_address: ${LIDARR_LISA_STATIC_IP}
@@ -318,9 +383,7 @@ services:
     volumes:
       # - /etc/localtime:/etc/localtime:ro
       - ${APPDATA_DIR}/lidarr/lisa:/config
-      - ${MEDIADATA_DIR}/servarr_data/media/music/lisa:/data
-      - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/shared
-      - ${MEDIADATA_DIR}/servarr_data/soulseek/downloads:/downloads
+      - ${ARRAY_DIR}/servarr_data/:/data
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -330,21 +393,21 @@ services:
     depends_on:
       - prowlarr
       - qbittorrent
-      - slskd
+      # - slskd
 
   navidrome:
-   container_name: navidrome
-   image: deluan/navidrome:latest
+    container_name: navidrome
+    image: deluan/navidrome:latest
   #  user: 1005:1005 #Navidrome should be run as its own user and only needs read access to its volumes
-   ports:
-     - 4533:4533
-   restart: unless-stopped
-   networks:
+    ports:
+      - 4533:4533
+    restart: always
+    networks:
       vpn:
         ipv4_address: ${NAVIDROME_STATIC_IP}
       nginx_network:
         ipv4_address: ${NAVIDROME_STATIC_IP_NGINX}
-   environment:
+    environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
       TZ: ${TZ}
@@ -355,18 +418,18 @@ services:
       ND_LASTFM_SECRET: ${ND_LASTFM_SECRET}
       ND_SPOTIFY_ID: ${ND_SPOTIFY_ID}
       ND_SPOTIFY_SECRET: ${ND_SPOTIFY_SECRET}
-   volumes:
-     - ${APPDATA_DIR}/navidrome:/data
-     - ${APPDATA_DIR}/navidrome/temp:/music #Important, see below
-     # Change these volumes accordingly to something that makes sense to you.
-     # Each user should have a library folder and a discover folder
-     # Note the right-side paths don't stem from "/music". This is because Navidrome by default adds the "/music" path
-     # to all users' libraries, and this cannot be removed. This is also why we map /music to an empty directory above.
-     - ${MEDIADATA_DIR}/servarr_data/media/music/paul:/paul/music
-     - ${MEDIADATA_DIR}/servarr_data/media/music/discover/paul:/paul/discover
-     - ${MEDIADATA_DIR}/servarr_data/media/music/lisa:/lisa/music
-     - ${MEDIADATA_DIR}/servarr_data/media/music/discover/lisa:/lisa/discover
-     - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/shared
+    volumes:
+      - ${APPDATA_DIR}/navidrome:/data
+      - ${APPDATA_DIR}/navidrome/temp:/music #Important, see below
+      # Change these volumes accordingly to something that makes sense to you.
+      # Each user should have a library folder and a discover folder
+      # Note the right-side paths don't stem from "/music". This is because Navidrome by default adds the "/music" path
+      # to all users' libraries, and this cannot be removed. This is also why we map /music to an empty directory above.
+      - ${ARRAY_DIR}/servarr_data/media/music/paul:/paul/music
+      - ${ARRAY_DIR}/servarr_data/media/music/discover/paul:/paul/discover
+      - ${ARRAY_DIR}/servarr_data/media/music/lisa:/lisa/music
+      - ${ARRAY_DIR}/servarr_data/media/music/discover/lisa:/lisa/discover
+      - ${ARRAY_DIR}/servarr_data/media/music/shared:/shared
 
   slskd:
     image: slskd/slskd:latest
@@ -390,11 +453,11 @@ services:
       SLSKD_SLSK_PASSWORD: ${SLSKD_SLSK_PASSWORD} # soulseek password
     volumes:
       - ${APPDATA_DIR}/slskd:/app
-      - ${MEDIADATA_DIR}/servarr_data/soulseek/downloads:/downloads
-      - ${MEDIADATA_DIR}/servarr_data/media/music/paul:/data1 # Mount each user's library as a different directory. These are only used for uploads/shares.
-      - ${MEDIADATA_DIR}/servarr_data/media/music/lisa:/data2
-      - ${MEDIADATA_DIR}/servarr_data/media/music/shared:/data3
-    restart: unless-stopped
+      - ${ARRAY_DIR}/servarr_data/soulseek/downloads:/downloads
+      - ${ARRAY_DIR}/servarr_data/media/music/paul:/data1 # Mount each user's library as a different directory. These are only used for uploads/shares.
+      - ${ARRAY_DIR}/servarr_data/media/music/lisa:/data2
+      - ${ARRAY_DIR}/servarr_data/media/music/shared:/data3
+    restart: always
     depends_on:
       vpn:
         condition: service_healthy
@@ -414,7 +477,7 @@ services:
   #     SCRIPT_INTERVAL: 300 # Script interval in seconds
   #   volumes:
   #     # "You can set /downloads to whatever you want but will then need to change the Slskd download dir in your config file"
-  #     - ${MEDIADATA_DIR}/servarr_data/media/music/downloads/soulseek:/downloads
+  #     - ${ARRAY_DIR}/servarr_data/media/music/downloads/soulseek:/downloads
   #     # Select where you are storing your config file.
   #     # Leave "/data" since thats where the script expects the config file to be
   #     - ${APPDATA_DIR}/soularr:/data

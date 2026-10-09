@@ -31,7 +31,7 @@
 # server_names = ['scaleway-fr', 'google', 'yandex', 'cloudflare']
 server_names = [
                 # DNScrypt servers
-                #'lpgrossi18', 
+                #'self-hosted',
                 'cs-nyc',
                 'scaleway-fr',
                 'cs-ch',
@@ -1029,9 +1029,14 @@ privacy_level = 1
 ## Optional, local, static list of additional servers
 ## Mostly useful for testing your own servers.
 
- [static.'lpgrossi18']
-   stamp = 'sdns://AQcAAAAAAAAAEDE3Mi4xOC4wLjExOjU0NDMgdnJSq82hQU_dKhnjKG5OIuUX6qU20VVMYYVYhyGkekUmMi5kbnNjcnlwdC1jZXJ0LmxwZ3Jvc3NpMTguZHVja2Rucy5vcmc'
+## Self-hosted DNSCrypt resolver. Currently DISABLED (see server_names above).
+## The stamp is redacted here because it base64-encodes the real DuckDNS
+## hostname and the container's internal IP. The live value is in the
+## Time Capsule copy of this file; regenerate with `dnscrypt-proxy -show-certs`
+## or the stamp calculator at https://dnscrypt.info/stamps/
+# [static.'self-hosted']
+#   stamp = 'sdns://REDACTED'
 
 ## not where this goes
-#[relay.'lpgrossi18-relay']
-#  stamp = 'sdns://gRAxNzIuMTguMC4xMTo1NDQz'
+#[relay.'self-hosted-relay']
+#  stamp = 'sdns://REDACTED'

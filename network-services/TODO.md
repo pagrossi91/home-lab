@@ -6,264 +6,68 @@ This file tracks pending improvements, security hardening, and configuration tas
 
 ### High Priority
 
-#### 1. Remove External Pi-hole Admin Access
-**Risk Level**: HIGH - Pi-hole admin currently exposed to internet via SWAG
+#### ~~1. Remove External Pi-hole Admin Access~~ ✅ Done (2026-10-05)
+Pi-hole admin — along with Portainer and the Unraid web UI — is now restricted to LAN/WireGuard at the SWAG level. Each proxy-conf starts with an `if ($remote_addr !~ ...) { return 444; }` rule, so internet clients get a silently dropped connection while the same `https://<service>.<subdomain>.duckdns.org` URLs keep working at home and over VPN. Unknown hostnames are refused at the TLS handshake (`ssl_reject_handshake on` in `default.conf`). See **README → SWAG Reverse Proxy → Access Restrictions**.
 
-**Current State**: 
-- Pi-hole accessible via `https://pihole.<subdomain>.duckdns.org`
-- Exposes DNS logs, network topology, and admin controls to internet
-- Single password protects entire network DNS control
-
-**Security Impact**:
-- **DNS Query Exposure**: Attackers can view all DNS queries from your network, revealing browsing habits, internal services, and network topology
-- **Network Reconnaissance**: Pi-hole logs show internal device names, IP addresses, and service discovery attempts
-- **DNS Manipulation**: Compromised admin access allows redirecting any domain to malicious servers (banking sites → phishing, software updates → malware)
-- **Persistent Network Control**: DNS control enables long-term persistent access - redirect security updates, block security tools, etc.
-- **Data Exfiltration**: Can redirect internal services to external servers to capture credentials and sensitive data
-- **Lateral Movement**: Knowledge of internal network structure facilitates attacks on other services
-
-**Recommended Action**: Remove external access entirely
-```bash
-# Disable external Pi-hole access
-mv ./swag/config/nginx/proxy-confs/pihole.subdomain.conf ./swag/config/nginx/proxy-confs/pihole.subdomain.conf.disabled
-
-# Restart SWAG to apply changes
-docker compose restart swag
-
-# Verify external access is blocked
-curl -I https://pihole.<subdomain>.duckdns.org
-# Should return: HTTP 404 or connection refused
-```
-
-**Alternative for Remote Access**:
-```bash
-# Option 1: SSH tunnel (recommended)
-ssh -L 8181:localhost:81 user@your-server-ip
-# Then access: http://localhost:8181/admin
-
-# Option 2: VPN access to local network
-# Configure WireGuard/OpenVPN, then use: http://server-local-ip:81/admin
-```
-
-#### 2. Implement Local Access Restrictions
-**Purpose**: Restrict Pi-hole admin to local network only
-
-**Security Impact**:
-- **Attack Surface Reduction**: Eliminates direct internet access to Pi-hole, forcing attackers to first compromise local network
-- **Insider Threat Mitigation**: Restricts access to physically present or VPN-connected users only
-- **Brute Force Prevention**: External automated password attacks become impossible
-- **Network Boundary Enforcement**: Aligns with network security best practice of internal-only admin interfaces
-- **Audit Trail**: Local access attempts are easier to monitor and correlate with physical presence
-
-```bash
-# Method 1: Firewall-based (recommended)
-sudo ufw allow from 192.168.0.0/16 to any port 81 comment 'Pi-hole admin - local only'
-sudo ufw deny 81 comment 'Block external Pi-hole direct access'
-
-# Method 2: Docker port binding (more restrictive)
-# In docker-compose.yml, change Pi-hole ports to:
-ports:
-  - "192.168.50.X:81:80/tcp"    # Replace X with your server's IP
-  - "192.168.50.X:444:443/tcp"  # HTTPS interface
-```
-
-**Verification**:
-```bash
-# Test local access works
-curl -I http://192.168.50.X:81/admin
-
-# Test external access blocked
-nmap -p 81 your-external-ip
-# Should show: 81/tcp filtered
-```
+#### ~~2. Implement Local Access Restrictions~~ ✅ Done (2026-10-05)
+The gap as written didn't exist: over IPv4 the router forwards only 443 and the WireGuard port, so Pi-hole's port 81 was never reachable from the internet. The real exposure was IPv6 — Docker publishes every port on `[::]` and the server has a public IPv6 address — and the router's IPv6 firewall was confirmed to drop inbound connections. The suggested `ufw` method doesn't apply (Unraid has no `ufw`, and Docker bypasses it). Instead, host-published ports that only other containers used were removed: Pi-hole 444, dnscrypt-proxy 5053, MariaDB 3306/3307, Mosquitto 9001, Nextcloud 8079. See **README → SWAG Reverse Proxy → Host Port Exposure**.
 
 ### Medium Priority
 
-#### 1. Add Security Headers to SWAG Proxy Configs
-**Purpose**: Implement browser-side security protections
+#### ~~1. Add Security Headers to SWAG Proxy Configs~~ ✅ Done (2026-10-05)
+HSTS (two years, `includeSubDomains`, no preload) is set in `ssl.conf`, so it covers every service. `nosniff` and `X-Frame-Options: SAMEORIGIN` are added through `map` fallbacks only where an app sends none, so apps that set their own keep their values. The suggested generic CSP (it would break Plex, Immich and Nextcloud) and `X-XSS-Protection` (obsolete) were deliberately left out. Nextcloud's proxy-conf no longer hides its own headers. The stale `overseerr` vhost (container long gone) was removed. See **README → SWAG Reverse Proxy → Security Headers**.
 
-**Security Impact**:
-- **HSTS (Strict-Transport-Security)**: Forces browsers to use HTTPS only, preventing SSL stripping attacks and accidental HTTP access
-- **X-Content-Type-Options**: Prevents MIME type confusion attacks where browsers incorrectly interpret file types, blocking XSS via file uploads
-- **X-Frame-Options**: Prevents clickjacking attacks by blocking your site from being embedded in malicious iframes
-- **X-XSS-Protection**: Enables browser's built-in XSS filtering (legacy browsers), provides defense against reflected XSS attacks
-- **Content-Security-Policy**: Prevents code injection by controlling which resources (scripts, styles, images) browsers can load
-- **Referrer-Policy**: Controls what referrer information is sent to external sites, reducing information leakage about your internal URLs
+#### ~~2. Implement Rate Limiting~~ ✅ Done (2026-10-05)
+Every internet-facing login already had protection, from the app itself or from SWAG's fail2ban (5 × HTTP 401 → banned on all ports), except Seerr. Its failed logins return 403, which fail2ban doesn't count, so Seerr's local sign-in was turned off (everyone uses Plex). A `recidive` jail now bans repeat offenders for a week. The suggested nginx `limit_req` was not adopted: its `/admin` and `/login` paths don't exist in these apps, a 60 r/m "general" zone would break Home Assistant and Immich, and per-IP limits would throttle the whole household, which shares the router's IP. Home Assistant's own ban on the router IP (`ip_bans.yaml`) is now documented under Troubleshooting. See **README → SWAG Reverse Proxy → Brute-Force Protection**.
 
-**Attack Scenarios Prevented**:
-- **SSL Downgrade**: Attacker forces HTTP connection → HSTS prevents this
-- **Malicious File Upload**: User uploads "image" containing script → X-Content-Type-Options blocks execution
-- **Clickjacking**: Malicious site embeds your admin panel in invisible iframe → X-Frame-Options blocks embedding
-- **Script Injection**: Attacker injects malicious JavaScript → CSP blocks unauthorized script execution
+### Deferred: Needs Planning
 
-**Implementation**: Update existing proxy configs in `./swag/config/nginx/proxy-confs/`
+#### 1. Restrict Container → LAN/Host Traffic (Network Segmentation Stage 2)
+**Gap (verified 2026-10-05):** a container compromised from the internet can open connections to every host-published port through the host's LAN IP or the bridge gateway: Portainer `:9000` (Docker socket behind a login), Frigate's unauthenticated `:5000`, MQTT, InfluxDB, the *arrs, and the Unraid UI. It can also reach the rest of the LAN, such as the router's admin page. Docker networks can't stop this, because the traffic leaves through the host's normal routing. This is the main remaining path from an internet-facing breach into the LAN.
 
-Example for any `*.subdomain.conf` file:
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name servicename.*;
+**Direction:** host firewall rules that drop *new* connections from Docker bridge subnets to the LAN and to host ports, with an explicit allow-list by source container. Replies to connections the LAN starts (`ESTABLISHED,RELATED`) stay allowed, so LAN access to every service is unchanged.
+- `DOCKER-USER` (FORWARD) covers container → LAN and container → *published* ports, which are DNAT'd to another container. Match on `--ctorigdst` to see the pre-DNAT target.
+- `INPUT` covers container → services on the host itself, such as the Unraid web UI (SWAG's `unraid` proxy-conf needs an allow rule).
 
-    # Security headers
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" always;
+**Plan before implementing:**
+1. Inventory every container's legitimate LAN/host destinations. Known so far:
+   - Home Assistant: IoT devices, cameras, Pi-holes `:81`, the *arrs and SABnzbd by LAN IP, Plex via `plex.direct`, and `matterjs-server` (host network).
+   - Frigate: cameras.
+   - SWAG: the Pi (Pi-hole, Portainer) and the Unraid UI.
+   - Seerr: Plex via `plex.direct`, which resolves to the LAN IP.
+   - Plex: GDM/DLNA discovery.
+   - Nebula-Sync runs on the Pi, so it's out of scope here.
+   - WireGuard: peers' LAN access goes through `wg_network`, and must be allowed.
+2. Decide the default per network: deny for `nginx_network`, `vpn` and `immich`/`nextcloud` backends; allow-list for `homeassistant_network`.
+3. Persistence: Unraid has no firewall manager. Apply the rules from a User Scripts entry at array start (or the `go` file), make them idempotent, and confirm Docker doesn't flush `DOCKER-USER` when it restarts.
+4. Rollout: start with `LOG` rules only for a week to catch real traffic that an allow-list would miss, then switch to `DROP`.
+5. Verify with the throwaway-container probe from README → Network Segmentation, extended to host ports and the router, plus a check of every HA integration and the Plex clients.
 
-    include /config/nginx/ssl.conf;
-
-    location / {
-        include /config/nginx/proxy.conf;
-        resolver 127.0.0.11 valid=30s;
-        set $upstream_app servicename;
-        set $upstream_port 80;
-        set $upstream_proto http;
-        proxy_pass $upstream_proto://$upstream_app:$upstream_port;
-    }
-}
-```
-
-#### 2. Implement Rate Limiting
-**Purpose**: Prevent brute force and DoS attacks
-
-**Security Impact**:
-- **Brute Force Prevention**: Limits login attempts, making password attacks impractical (10 attempts/minute vs 1000s/minute)
-- **DoS Mitigation**: Prevents attackers from overwhelming your services with excessive requests
-- **Resource Protection**: Limits CPU/memory consumption from automated attacks
-- **Bandwidth Conservation**: Prevents bandwidth exhaustion from malicious traffic
-- **Service Availability**: Ensures legitimate users can access services during attack attempts
-
-**Attack Scenarios Prevented**:
-- **Credential Stuffing**: Automated login attempts using leaked passwords → Limited to 5-10 attempts per minute
-- **Application DoS**: Overwhelming service with requests → Rate limiting prevents resource exhaustion
-- **Reconnaissance**: Automated scanning of endpoints → Slows down attacker reconnaissance
-- **API Abuse**: Excessive automated API calls → Protects backend services from overload
-
-**Real-World Impact**: 
-- **Before**: Attacker could attempt 10,000 passwords in 10 minutes
-- **After**: Attacker limited to 100-150 attempts in same timeframe
-- **Detection**: Rate limiting triggers provide early warning of attack attempts
-
-**Implementation**: Add to SWAG's main nginx configuration
-
-Create `./swag/config/nginx/rate-limiting.conf`:
-```nginx
-# Rate limiting zones
-limit_req_zone $binary_remote_addr zone=admin:10m rate=10r/m;
-limit_req_zone $binary_remote_addr zone=general:10m rate=60r/m;
-limit_req_zone $binary_remote_addr zone=login:10m rate=5r/m;
-```
-
-Include in `./swag/config/nginx/nginx.conf` within `http {}` block:
-```nginx
-include /config/nginx/rate-limiting.conf;
-```
-
-Then add to proxy configs as needed:
-```nginx
-location /admin {
-    limit_req zone=admin burst=5 nodelay;
-    # ... rest of config
-}
-
-location /login {
-    limit_req zone=login burst=2 nodelay;
-    # ... rest of config
-}
-```
+**Risks:** a missing allow rule fails quietly (an HA device goes unavailable, Plex discovery stops working). Also, a rule that matches LAN *replies* instead of new connections would cut LAN access to services.
 
 ## 🛠️ Configuration Improvements
 
 ### High Priority
 
-#### 1. Environment Variable Consolidation
-**Current**: Some IPs hardcoded in configurations
-**Goal**: All IPs use environment variables consistently
+#### ~~1. Environment Variable Consolidation~~ ✅ Done (2026-10-05)
+The named gap didn't exist. `pihole.toml` is generated by FTL and untracked, it can't do `${}` substitution, and its upstream already comes from `.env` through `FTLCONF_dns_upstreams` (marked `### CHANGED (env)`). Hardcoded Docker bridge IPs in the compose files are each defined once and used once, and `CLAUDE.md` keeps them readable on purpose, so they weren't moved into `.env`. All six `.env`/`.env.example` pairs have matching keys, and no real LAN IPs appear in tracked files. The real drift was the README's own copy of the `.env` template, which was missing 10 keys, including `WG_*` (the stack wouldn't start without them). It now points to `.env.example` as the single template and documents the missing keys. `172.XX` placeholders became the real `172.18.x` addresses, and the commented `dhcp-helper` target now uses `${PIHOLE_STATIC_IP}` instead of a stale IP. See **README → Environment Configuration**.
 
-**Files to update**:
-- `./pi-hole/etc-pihole/pihole.toml` - Use `${DNSCRYPTPROXY_STATIC_IP}`
-- Various documentation examples - Use variable substitution
-- Ensure all docker-compose references use environment variables
-
-#### 2. Container Health Checks
-**Purpose**: Better monitoring and auto-restart capabilities
-
-Add to docker-compose.yml:
-```yaml
-services:
-  pihole:
-    healthcheck:
-      test: ["CMD", "dig", "@127.0.0.1", "google.com"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-
-  dnscrypt-proxy:
-    healthcheck:
-      test: ["CMD", "dig", "@127.0.0.1", "-p", "5053", "google.com"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  swag:
-    healthcheck:
-      test: ["CMD", "curl", "-f", "https://localhost:443"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-```
+#### ~~2. Container Health Checks~~ ✅ Done (2026-10-05)
+Pi-hole and Watchtower already had built-in checks. Added `dnscrypt-proxy` (`dnsprobe` in exec form, since the image has no shell or `dig`) and `swag` (`curl` against port 80, since HTTPS to `localhost` fails on the certificate and on `ssl_reject_handshake`). The proposed commands would have left both permanently unhealthy. The stated "auto-restart" purpose was a misconception: Docker never restarts unhealthy containers, so this is status only. Not adopted: `depends_on: service_healthy` (Pi-hole wouldn't start at all if the server boots during an internet outage) and `autoheal` (needs `docker.sock`). Measured overhead is about 0.1 s per probe per minute. Alerting on health status is deferred to **Monitoring and Alerting**. Also corrected README Pi-hole step 6: the router's secondary DNS is the second Pi-hole, not a public resolver. See **README → Health Checks**.
 
 ### Medium Priority
 
-#### 1. Network Segmentation
-For enhanced security, consider separate networks:
-- Management network (Portainer, admin interfaces)
-- DNS network (Pi-hole, DNSCrypt)
-- External network (SWAG, DuckDNS)
+#### ~~1. Network Segmentation~~ ✅ Done (2026-10-05), Stage 1
+A container on `nginx_network` could reach Immich's Redis (no password), Postgres and ML API, and Nextcloud's MariaDB. Those now sit on private `immich_backend` and `nextcloud_backend` networks; `immich_server` and `nextcloud` have since left `nginx_network` too: SWAG reaches them by host port. The proposed management/DNS/external split was not adopted: Portainer, Pi-hole and the *arrs are published on host ports for LAN access, so a compromised container reaches them through the LAN IP whichever Docker network they're on. Closing that path is Stage 2: **Security Hardening → Restrict Container → LAN/Host Traffic**. See **README → Network Configuration Deep Dive → Network Segmentation**.
 
-#### 2. High Availability Setup
+#### ~~2. High Availability Setup~~ ✅ Done (2026-10-05), not adopted
+Redundancy already exists, and at a better level than proposed. Unraid and the Pi each run a full Pi-hole → DNSCrypt-Proxy chain, and the router hands out both. DNSCrypt-Proxy already balances across seven servers by latency and drops failed ones, which covers the "geographic load balancing" idea for a single site. A second `dnscrypt-proxy` on the same host would only cover a crash, which the restart policy handles. Cross-host upstreams would need 5053 back on the LAN. The remaining gap (Pi-hole up, `dnscrypt-proxy` down) is detected by the health check and depends on the alerting decision. See **README → Architecture Overview → Redundancy**.
 
-##### Multiple DNSCrypt Servers
-For enhanced reliability, consider multiple DNSCrypt proxy instances:
+#### ~~3. Performance Scaling~~ ✅ Done (2026-10-06), not adopted
+Nothing to tune. The proposed `dns_cache_size: 10000` is already Pi-hole v6's default, and `dns_cache_insert_strategy` doesn't exist in FTL. Neither host's cache has evicted a record: Unraid inserted about 33,000 and held about 2,700 at once. FTL uses 3.5% of the Pi's memory. Stale-while-refresh (`dns.cache.optimizer`) already answers many queries from cache. The resource-monitoring half duplicates **Monitoring and Alerting → Container Resource Monitoring** and waits on the alerting decision. See **README → Pi-hole DNS Filter → Troubleshooting** for the eviction check.
 
-```yaml
-dnscrypt-proxy-backup:
-  container_name: dnscrypt-proxy-backup
-  image: klutchell/dnscrypt-proxy:latest
-  networks:
-    nginx_network:
-      ipv4_address: 172.XX.0.13
-  # ... same config as primary
-```
-
-Then configure Pi-hole with multiple upstreams:
-```yaml
-FTLCONF_dns_upstreams: 172.XX.0.12#5053;172.XX.0.13#5053
-```
-
-##### Geographic Load Balancing
-For multiple location deployments, consider:
-- Regional DNSCrypt server selection
-- Latency-based server prioritization
-- Automatic failover mechanisms
-
-#### 3. Performance Scaling
-
-##### Pi-hole Performance Tuning
-```yaml
-# In docker-compose.yml environment section
-FTLCONF_dns_cache_size: 10000  # Increase from default
-FTLCONF_dns_cache_insert_strategy: LRU  # Optimize cache strategy
-```
-
-##### Resource Monitoring Integration
-Consider integrating with monitoring systems:
-- Prometheus + Grafana for metrics
-- ELK stack for log analysis
-- Alerting for service failures
+#### ~~4. Back Up the Raspberry Pi~~ ✅ Done (2026-10-06)
+The weekly **Backup to Time Capsule** job now pulls the Pi's `~/homelab/network-services` over SSH straight onto the Time Capsule, into `rpi3-backups/network-services/` beside `unraid-backups/`. It has its own 30-day `_versions/` and a permissions list (CLAUDE.md §3). The pull runs before Unraid's stacks stop. The pull runs as `rpi3` without sudo, so rsync reports anything it can't read. It is read-only on the Pi, so the Pi's DNS stays up. It uses the main exclude list (Pi-hole databases, `listsCache/`, logs) and also skips `swag/` (a copy of Unraid's) and Portainer's root-only `backups/`. A Pi that can't be reached is logged as an error and the rest of the backup continues. First pull: 114 files, 3 MB, about 3 s. A checksum comparison against the Pi was identical, with `.env`, `wg_confs/wg0.conf` and all seven peers present. Restore: rsync `rpi3-backups/network-services/` back to the Pi's `~/homelab/network-services/`, reapply `permissions.txt.gz`, then `docker compose up -d`.
 
 ### Low Priority
 
@@ -321,6 +125,12 @@ EOF
 ```
 
 ## 📊 Monitoring and Alerting
+
+### Alerting (decision pending)
+Docker health status (README → Health Checks) is recorded but nothing reads it. Decide how alerts reach a person, and use the same channel for the items below. Candidates, from least to most added attack surface:
+1. A User Scripts job on a schedule: `docker ps --filter health=unhealthy` plus certificate expiry, emailed via the existing SMTP settings. No new container, no new privileges.
+2. A Home Assistant integration (Docker/Portainer), using HA's existing notifications. HA gains API access to a root-equivalent tool.
+3. Uptime Kuma. Its probes work without `docker.sock`; reading container health needs `docker.sock`.
 
 ### DNS Performance Monitoring
 **Goal**: Track DNS resolution times and failures
@@ -403,6 +213,4 @@ chmod +x security-tests.sh
 2. **MEDIUM**: Advanced security features, high availability setup
 3. **LOW**: Enhanced monitoring, automated backups
 
-**Estimated Time**: 3-4 hours for high priority items# Homelab Network Stack - TODO
-
-This file tracks pending improvements, security hardening, and configuration tasks for the network services stack.
+**Estimated Time**: 3-4 hours for high priority items

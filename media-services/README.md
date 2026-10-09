@@ -75,8 +75,8 @@ MEDIADATA_DIR=../../RAIDdir # Customize this for where your media storage lives.
 
 # Plex Configuration
 PLEX_CLAIM=claim-xxxxxxxxxx  # Get from plex.tv/claim
-ADVERTISED_IPS=http://192.168.1.100:32400/  # Your server's LAN IP
-LAN_SUBNET=192.168.1.0/24
+ADVERTISED_IPS=http://192.168.X.X:32400/  # Your server's LAN IP
+LAN_SUBNET=192.168.X.0/24
 
 # VPN Configuration (NordVPN example)
 Nord_PRIVATEKEY2025=your_nordvpn_private_key
