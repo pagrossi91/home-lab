@@ -43,7 +43,7 @@ services:
 
   mariadb-ha:
     container_name: mariadb-ha
-    image: mariadb:latest
+    image: mariadb:lts
     hostname: mariadb-ha-docker
     networks: 
       - homeassistant_network
