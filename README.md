@@ -2,6 +2,8 @@
 
 This homelab consists of four main Docker stacks providing comprehensive home automation, media management, file services, and network security. Each docker stack can be deployed from their respective directory with `docker compose up -d`. Detailed configuration documentation and `TODO` items will be available in each Stack's project directory.
 
+The Unraid host itself (flash-drive files, User Scripts, stack start/stop, OS updates) is documented in [UNRAID.md](UNRAID.md).
+
 ## 🗂️ Cloud Services Stack
 **Directory:** `cloud/`
 
