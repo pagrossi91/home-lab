@@ -7,6 +7,7 @@ networks:
       config:
         - subnet: 172.21.0.0/16
           gateway: 172.21.0.1
+          ip_range: 172.21.1.0/24 # Docker auto-assigns only from here; fixed addresses stay in 172.21.0.x
   nginx_network:
     external: true
 
@@ -46,7 +47,8 @@ services:
     image: mariadb:lts
     hostname: mariadb-ha-docker
     networks: 
-      - homeassistant_network
+      homeassistant_network:
+        ipv4_address: 172.21.0.3
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -65,7 +67,8 @@ services:
     image: influxdb:latest
     container_name: influxdb
     networks: 
-      - homeassistant_network
+      homeassistant_network:
+        ipv4_address: 172.21.0.4
     environment:
       # DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: ${HA_USER}
@@ -118,7 +121,8 @@ services:
     container_name: mosquitto-mqtt
     image: eclipse-mosquitto
     networks: 
-      - homeassistant_network
+      homeassistant_network:
+        ipv4_address: 172.21.0.2
     volumes:
       - ${APPDATA_DIR}/mosquitto/config:/mosquitto/config
       - ${APPDATA_DIR}/mosquitto/data:/mosquitto/data
@@ -158,7 +162,8 @@ services:
     privileged: true # this may not be necessary for all setups
     image: ghcr.io/blakeblackshear/frigate:stable
     networks: 
-      - homeassistant_network
+      homeassistant_network:
+        ipv4_address: 172.21.0.5
     shm_size: 370mb # update for your cameras based on calculation above
     # group_add: # Groups required to use AMD GPU as video decoder (VA-API)
     #   - 44 # video

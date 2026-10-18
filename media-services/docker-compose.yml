@@ -5,6 +5,7 @@ networks:
       config:
         - subnet: 172.19.0.0/16
           gateway: 172.19.0.1
+          ip_range: 172.19.1.0/24 # Docker auto-assigns only from here; fixed addresses stay in 172.19.0.x
   nginx_network:
     external: true
      
@@ -14,7 +15,8 @@ services:
     container_name: plex
     hostname: plex-docker
     networks:
-      - nginx_network 
+      nginx_network:
+        ipv4_address: ${PLEX_STATIC_IP_NGINX}
     ports:
       - 32400:32400/tcp
       - 8324:8324/tcp
@@ -335,7 +337,8 @@ services:
     container_name: recyclarr
     user: ${LOCAL_USER}:${LOCAL_USER}
     networks:
-      - vpn 
+      vpn:
+        ipv4_address: ${RECYCLARR_STATIC_IP}
     volumes:
       - ${APPDATA_DIR}/recyclarr:/config
     environment:
