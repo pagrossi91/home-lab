@@ -625,14 +625,38 @@ docker compose up -d pihole
    - Settings → DNS → Interface listening behavior
    - Select "Listen on all interfaces"
 5. **Verify DNS and blocking functionality**: Conduct the troubleshooting steps below to verify DNS resolution,  routing to DNSCrypt, and ad blocking are working. If they are, proceed to the next step. Else, search logs relevant to the troubleshooting step that failed.
-6. **Router DNS Configuration**
-    - Primary DNS: The Unraid host's LAN IP
-      > **Note**: This should be `192.168.XX.XXX` and not the internal docker IP address set in the `.env` file, which would look like `172.18.0.10`.
-    - Secondary DNS: The Raspberry Pi's LAN IP — the second Pi-hole, **not** a public resolver like 1.1.1.1 or 8.8.8.8
-    - DHCP settings: Ensure router continues handling DHCP
+6. **Router DNS Configuration** (ASUS stock firmware; other routers have equivalent fields)
+
+    Hand the Pi-holes to clients **directly**, through the router's DHCP server. The router's own WAN DNS is a separate setting and isn't enough on its own:
+
+    | Router page | Setting | Value |
+    |---|---|---|
+    | LAN → DHCP Server | DNS Server 1 | The Unraid host's LAN IP (`PIHOLE_UNRAID`) |
+    | LAN → DHCP Server | DNS Server 2 | The Raspberry Pi's LAN IP (`PIHOLE_RPI3`) |
+    | LAN → DHCP Server | Advertise router's IP in addition to user-specified DNS | **No** |
+    | WAN → Internet Connection | Connect to DNS Server automatically | **No**; DNS servers = the same two Pi-holes |
+    | IPv6 → IPv6 DNS Setting | Connect to DNS Server automatically | **Disable** (see the IPv6 note below) |
+
+    > **Note**: The Pi-hole addresses are the hosts' `192.168.XX.XXX` LAN IPs, not the internal Docker address set in the `.env` file, which would look like `172.18.0.10`.
+
+    **Why the LAN DHCP fields, not only WAN**: With the LAN fields empty, the router hands out *itself* as DNS and forwards every lookup to whatever is in its WAN DNS. Pi-hole then sees every query as coming from the router, so the query log can't tell devices apart. Filtering also depends on the router's whole upstream list being Pi-holes. If anything else is on that list, such as an ISP resolver learned over IPv6, the router can use it and ads come back without a trace in Pi-hole. It shows up instead as a **drop in total query volume** across both Pi-holes. On 2026-09-29 both Pi-holes together logged 45 queries against a normal ~88,000.
+
+    **IPv6**: Clients also take DNS servers from the router's IPv6 Router Advertisements and DHCPv6 ("Enable router advertisement" on the IPv6 page: it is also how devices get IPv6 addresses and a route, so leave it on. Matter needs IPv6), and Apple devices prefer them. On stock firmware those always point at the router itself, so the router stays in the path for IPv6 lookups. That's fine as long as its upstreams are only the Pi-holes, which is what disabling automatic IPv6 DNS ensures. The alternative is to turn IPv6 off on the LAN (IPv6 → Connection type → Disable). That removes the path entirely, and with it the IPv6 exposure described under Host Port Exposure.
 
     **Why the secondary must be the other Pi-hole**: Clients don't treat "secondary" as standby-only — many send queries to both servers all the time. A public resolver there means a share of every device's lookups skips Pi-hole filtering and leaves the house **unencrypted**, visible to the ISP, even while everything is healthy. Two Pi-holes give real redundancy without that leak.
-  
+
+    **Verify** after the router change. Devices pick up new DNS servers when their DHCP lease renews; toggling Wi-Fi forces it.
+    ```bash
+    # What the router now hands out (run on Unraid). Expect both Pi-hole IPs, not the router
+    dhcpcd -U br0 | grep domain_name_servers
+    dhcpcd -6 -U br0 | grep -E 'rdnss|name_servers'
+
+    # Clients seen by this Pi-hole in the last hour. Expect individual LAN IPs, not only the router
+    docker exec pihole pihole-FTL sqlite3 /etc/pihole/pihole-FTL.db \
+      "select client, count(*) from queries where timestamp > strftime('%s','now')-3600 group by client order by 2 desc;"
+    ```
+    A device whose queries still arrive only through the router is using the router's IPv6 DNS. That's filtered, just not attributed.
+
     **Why router configuration is essential**: Without pointing your router to Pi-hole:
     - Network-wide ad blocking won't function
     - Clients will use ISP DNS servers (usually plain text)
@@ -650,6 +674,16 @@ docker compose up -d pihole
       - *TikTok blocklist*: `https://blocklistproject.github.io/Lists/tiktok.txt`
       - *Ads blocklist*: `https://blocklistproject.github.io/Lists/ads.txt`
       - *Tracker blocklist*: `https://blocklistproject.github.io/Lists/tracking.txt`
+
+#### Why No Conditional Forwarding
+
+Conditional forwarding (`FTLCONF_dns_revServers`) would let Pi-hole show device names instead of IPs by asking the router. With this setup it creates a **DNS loop**, so the query log shows IPs.
+
+The router's upstream DNS is the two Pi-holes (Router DNS Configuration). Conditional forwarding sends the LAN's reverse zone (`X.168.192.in-addr.arpa`) to the router, plus every dotless name such as `local` (`server=//<router>` in Pi-hole's generated `dnsmasq.conf`). The router answers PTRs for its own DHCP leases, but forwards everything else upstream: back to a Pi-hole. "Forward local domain queries to upstream DNS = No" on the router doesn't stop it, because that covers only the router's own domain. Apple's constant service-discovery lookups (`lb._dns-sd._udp.0.X.168.192.in-addr.arpa`) and SOA `local` then circle until Pi-hole rate-limits the router, which refuses *every* query arriving through it.
+
+On 2026-10-11 this took query volume from ~60,000 to ~1,000,000 a day per host. The query history then outgrew FTL's shared memory and crashed the Unraid Pi-hole (`realloc_shm(): … No space left on device`); `shm_size` in the compose file now leaves room, but the loop was the cause. Breaking it on the router side means pointing the router's WAN DNS away from the Pi-holes, which sends router-relayed (IPv6) lookups and private-zone names to the ISP unfiltered. Device names aren't worth that. For devices that matter, add a Pi-hole **Local DNS record** instead; nebula-sync copies it to the other host.
+
+**Why a Pi-hole's IPv6 address must not be handed out as DNS**: Docker relays IPv6 connections to the published port 53 through its userland proxy, so Pi-hole logs them as the bridge gateway `172.18.0.1` instead of the device. Leave the router's IPv6 DNS fields blank.
 
 #### Troubleshooting
 
