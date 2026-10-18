@@ -13,7 +13,7 @@ networks:
 services:
   homeassistant:
     container_name: home-assistant
-    image: homeassistant/home-assistant:stable
+    image: homeassistant/home-assistant:2026.10.0 # stable
     hostname: homeassistant-docker
     networks: 
       homeassistant_network:
