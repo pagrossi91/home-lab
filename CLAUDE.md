@@ -15,6 +15,12 @@ If a file is needed to *rebuild* the server but must not be *published*, it
 belongs in the backup and nowhere else. Never add something to git just because
 a restore would want it.
 
+**[UNRAID.md](UNRAID.md) is the source of truth for how the Unraid host is
+configured** — boot script, plugins, User Scripts, persistence, anything you'd
+need to rebuild it from a blank flash drive. When you change host
+configuration, document it there, not in Claude's auto-memory: memory is
+private to one machine's agent and isn't backed up with the repo.
+
 ---
 
 ## 1. Never expose real WAN/LAN addresses or secrets

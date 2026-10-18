@@ -17,13 +17,14 @@ Nothing on `/boot` is tracked here. It is backed up weekly to the Time Capsule
 | `/boot` | USB flash drive, FAT. Unraid config, plugins, User Scripts, the files below |
 | `/mnt/user/appdata/homelab` | This repo, and Docker's appdata path (Settings → Docker) |
 | `/mnt/user/appdata/<service>` | Service data, outside the repo |
+| `/mnt/user/appdata/root-home` | Parts of `/root` that must survive a reboot, see [below](#root-is-a-ram-disk) |
 | `/mnt/user/system/docker/docker.img` | Docker image file |
 
 ### Files on `/boot` that matter
 
 | File | Purpose |
 |---|---|
-| `config/go` | Boot script. Starts the webGUI; installs the `gh` CLI from `config/gh/` (see FAT below) |
+| `config/go` | Boot script. Starts the webGUI; installs the `gh` CLI from `config/gh/` (see FAT below); links the persistent parts of `/root` back in (see RAM disk below) |
 | `config/homelab-backup.conf` | Real values for the backup: Time Capsule host/share/credentials, `PI_DNS_HOST`, `PI_SSH_USER`. `chmod 600`, never in git |
 | `config/homelab-stacks.sh` | Shared stack functions, see [below](#shared-stack-functions) |
 | `config/plugins/user.scripts/scripts/<name>/script` | Each User Script |
@@ -38,6 +39,47 @@ Nothing on `/boot` is tracked here. It is backed up weekly to the Time Capsule
 - **No hard links.** ssh can't rewrite `~/.ssh/known_hosts` in place and logs
   `hostfile_replace_entries … Operation not permitted`. Harmless.
 - **Edit with LF line endings.** A file saved with Windows CRLF breaks bash.
+
+### Boot device
+
+Unraid boots from the USB flash drive. 7.3 added **Internal Boot**
+(Settings → Wizards), which moves `/boot` onto a formatted internal pool; it
+was considered and declined (2026-10-18): it formats whole drives, the NVMe
+holds appdata, and the weekly `/boot` backup already covers a flash failure.
+Restoring onto a new stick also needs a license transfer
+(Tools → Registration).
+
+### `/root` is a RAM disk
+
+`/` is rebuilt from the flash drive on every boot, so anything written under
+`/root` is lost on reboot. What must persist lives in
+`/mnt/nvme-cache/appdata/root-home/`, and `go` symlinks it back in at boot:
+
+| `/root/…` | Holds |
+|---|---|
+| `.claude/` | Claude Code chat history, memory, credentials, settings |
+| `.claude.json` | Claude Code global config |
+| `.gitconfig` | Git commit identity, `safe.directory` for this repo |
+| `.vscode-server/` | VS Code remote server and its extensions |
+
+```bash
+# end of /boot/config/go
+for p in .claude .claude.json .gitconfig .vscode-server; do
+  ln -sfn /mnt/nvme-cache/appdata/root-home/$p /root/$p
+done
+```
+
+- The links dangle until the array starts; nothing uses them before then.
+- They target the pool path, not `/mnt/user`, so the VS Code server's sockets
+  and binaries skip the user-share layer. appdata is cache-only on
+  `nvme-cache`, so it is the same directory. Renaming the pool means updating
+  `go`.
+- To persist another `/root` path: stop what uses it, move it into
+  `root-home/`, add it to the loop, and symlink it by hand once.
+- The backup keeps `root-home/` but excludes `root-home/.vscode-server/`
+  (~1.1G, reinstalled on first connect).
+- Claude Code writes `.claude.json` through the symlink without replacing it
+  (verified across a reboot, 2026-10-18).
 
 ---
 
