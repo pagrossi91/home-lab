@@ -174,6 +174,10 @@ git check-ignore -v --no-index <path>        # confirm a path is covered
 `git check-ignore` skips already-tracked files unless you pass `--no-index` —
 without it a tracked secret looks clean.
 
+**Branches** are named `<issue#>-<short-name>` (e.g. `1-fixed-container-ips`)
+so each one traces back to its issue. Reference the issue in the PR body
+(`Closes #1`) so merging closes it.
+
 ---
 
 ## 3. Backups live in Unraid, not here
