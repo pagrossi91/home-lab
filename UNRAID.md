@@ -86,17 +86,50 @@ done
 ## Docker stacks
 
 The four stacks are plain `docker compose` projects, run from their directories
-in this repo. The Compose Manager plugin is installed but manages none of them.
+in this repo, started and stopped by the User Scripts below. Compose Manager
+doesn't start them, but it does stop them (see Rebooting).
 
 - **Order:** up `network-services` → `cloud` → `homeassistant` →
   `media-services`; down in reverse. `network-services` creates the SWAG
   network the others join.
+- **Fixed addresses:** every container has one, and Docker auto-assigns only
+  from a separate `ip_range`. See [CLAUDE.md §4](CLAUDE.md#4-stack-conventions).
 - **The array does not auto-start** after boot (Main → Array Operation).
   Start it by hand, then start the stacks.
 - **Restart policies** are `always` / `unless-stopped`, so containers that were
   only stopped come back on their own, in no particular order, when the array
   starts. Containers removed with `docker compose down` do not; start them with
   **Docker Stacks Up**.
+
+### Rebooting without Docker Stacks Down/Up
+
+Works, and needs no follow-up (verified 2026-10-18). What Unraid does:
+
+1. **Array stop:** Compose Manager's `event/stopping_docker` hook runs
+   `compose stop` on every stack directory under its projects folder, which is
+   this repo: all four at once, in no order. Its log lines read
+   `Stopping compose stack: ` with a blank name, since these directories have
+   no `name` file. Then `rc.docker stop` stops the Docker daemon, which sends
+   SIGTERM to anything left and waits up to 30 s. The databases log a clean
+   shutdown.
+2. **Array start:** `rc.docker` starts the daemon, which restarts every
+   container by its restart policy, all within about 2 s. `depends_on` and stack
+   order are ignored.
+
+Stack order doesn't matter here because `stop` keeps the containers and
+networks; only `down` deletes `nginx_network`. Containers that start before
+what they depend on retry and recover within a minute or two: Home Assistant
+logs `Unknown server host 'mariadb-ha'`, nebula-sync restarts a few times
+until Pi-hole listens, Pi-hole briefly logs `no such table: gravity` while
+nebula-sync rebuilds it.
+
+Run Docker Stacks Down/Up instead when the networks must be recreated (a new
+`docker.img`, a changed subnet or `ip_range`); the OS update steps below also
+use them. Unraid's shutdown doesn't check that the Pi's Pi-hole answers; the
+scripts do.
+
+The previous boot's syslog is kept at `/boot/logs/syslog-previous`;
+`/var/log` itself is RAM and starts empty each boot.
 
 ### DNS: never both hosts down
 
@@ -169,7 +202,7 @@ in the UI as a runnable script. `PI_DNS_HOST` comes from
 |---|---|
 | User Scripts | Backup and stack scripts above |
 | Community Applications | App/plugin installs |
-| Compose Manager | Installed; not used for these stacks |
+| Compose Manager | Doesn't start the stacks; its array-stop hook `compose stop`s them (projects folder = this repo) |
 | Appdata Backup | Installed; not configured (the User Scripts backup replaces it) |
 | NUT | UPS monitoring |
 

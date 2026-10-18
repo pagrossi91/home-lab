@@ -254,6 +254,28 @@ answering. Never let both hosts' Pi-holes be down at once.
 Order: **up** `network-services` → `cloud` → `homeassistant` → `media-services`;
 **down** in reverse.
 
+**Every container has a fixed address on every network it joins.** Docker
+picks automatic addresses from the whole subnet unless told otherwise, so
+sooner or later one lands on an address another container has fixed, and that
+container fails with `Address already in use` (issue #1). So:
+
+| Network | Fixed addresses | `ip_range` (automatic only) |
+|---|---|---|
+| `/16` networks (`172.18`–`172.22`) | `172.X.0.2`–`172.X.0.254` | `172.X.1.0/24` |
+| `wg_network` (`172.31.0.0/24`) | `.2`–`.127` | `172.31.0.128/25` |
+
+For a new service, pick a free `172.X.0.x` and add `ipv4_address`, written the
+way its neighbours are: an `*_STATIC_IP` key in `network-services` and
+`media-services` (add it to `.env.example` too; for `network-services`, to the
+Pi's `.env` as well, same value), a literal in `homeassistant` and `cloud`.
+Leave gaps between groups so related services can sit together. A service
+without one still starts, from the range, but give it one anyway.
+
+Compose does **not** notice a changed `ip_range` or subnet on an existing
+network; it silently keeps the old one. Changing either needs a full Docker
+Stacks Down/Up (and `docker compose down`/`up` of `network-services` on the
+Pi), then `docker network inspect` to confirm.
+
 Databases (Plex, `*arr` sqlite, MariaDB, InfluxDB, Nextcloud) are copied live by
 default. For a consistent backup set `STOP_STACKS=1` in the backup script, which
 brings the stacks down first.

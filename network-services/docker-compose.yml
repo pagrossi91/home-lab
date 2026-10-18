@@ -6,6 +6,7 @@ networks:
       config:
         - subnet: ${NGINX_NETWORK_SUBNET}
           gateway: ${NGINX_NETWORK_GATEWAY}
+          ip_range: ${NGINX_NETWORK_IP_RANGE} # Docker auto-assigns only from here; fixed addresses stay below it
   wg-network:
     name: "wg_network"
     driver: bridge
@@ -13,6 +14,7 @@ networks:
       config:
         - subnet: ${WG_NETWORK_SUBNET}
           gateway: ${WG_NETWORK_GATEWAY}
+          ip_range: ${WG_NETWORK_IP_RANGE}
 
 services: 
   duckdns:
@@ -20,7 +22,8 @@ services:
     container_name: duckdns
     profiles: [unraid] # Both hosts share one WAN IP, so one updater is enough; cert renewal uses its own token (swag dns-conf)
     networks:
-      - nginx_network
+      nginx_network:
+        ipv4_address: ${DUCKDNS_STATIC_IP}
     environment:
       PUID: ${LOCAL_USER}
       PGID: ${LOCAL_USER}
@@ -122,7 +125,8 @@ services:
     # stack before media-services, that is 172.19.0.0/16 — media-services' vpn
     # subnet — and media-services then fails with "Pool overlaps".
     networks:
-      - nginx_network
+      nginx_network:
+        ipv4_address: ${NEBULASYNC_STATIC_IP}
     environment:
       TZ: ${TZ}
       PRIMARY: ${PIHOLE_1_URL}|${PIHOLE_1_PWD}
@@ -202,7 +206,8 @@ services:
     image: containrrr/watchtower:latest
     hostname: watchtower-${HOST_TAG}
     networks:
-      - nginx_network
+      nginx_network:
+        ipv4_address: ${WATCHTOWER_STATIC_IP}
     environment:
       DOCKER_API_VERSION: 1.49
       TZ: ${TZ}
@@ -228,7 +233,8 @@ services:
     container_name: portainer
     hostname: portainer-${HOST_TAG}
     networks:
-      - nginx_network
+      nginx_network:
+        ipv4_address: ${PORTAINER_STATIC_IP}
     command: -H unix:///var/run/docker.sock
     environment:
       TZ: ${TZ}
