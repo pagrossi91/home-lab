@@ -97,7 +97,7 @@ services:
       # FTLCONF_dhcp_router: ${DHCP_ROUTER_IP}
       # FTLCONF_dhcp_ipv6: "true"
       FTLCONF_dns_listeningMode: all # Necessary for USER DEFINED NETWORK
-      # No FTLCONF_dns_revServers (conditional forwarding): it loops through the router, see README → Why No Conditional Forwarding
+      # No FTLCONF_dns_revServers (conditional forwarding): it loops through the router, see README → Device Names in the Query Log
       TZ: ${TZ}
     volumes: # Volumes store your data between container upgrades
       - ${APPDATA_DIR}/pi-hole/etc-pihole/:/etc/pihole/

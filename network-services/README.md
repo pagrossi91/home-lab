@@ -675,13 +675,21 @@ docker compose up -d pihole
       - *Ads blocklist*: `https://blocklistproject.github.io/Lists/ads.txt`
       - *Tracker blocklist*: `https://blocklistproject.github.io/Lists/tracking.txt`
 
-#### Why No Conditional Forwarding
+#### Device Names in the Query Log
 
-Conditional forwarding (`FTLCONF_dns_revServers`) would let Pi-hole show device names instead of IPs by asking the router. With this setup it creates a **DNS loop**, so the query log shows IPs.
+The query log shows the names from the router's client list (the custom name if one is set, else the device's own hostname). A **User Script** on Unraid, *Pi-hole device names*, reads that list from the router's web API every night at 03:30 and writes it into the Unraid Pi-hole's **Local DNS records**. Pi-hole names each client by asking itself for its PTR record. FTL caches those names and refreshes them hourly, so the script then signals it to refresh at once (`SIGRTMIN+4`). New queries show the new names; ones already logged keep the old. nebula-sync copies the records to the Pi at the top of the hour, and the Pi picks them up at its next hourly refresh. Rename a device in the router and run the script by hand to see the new name sooner. The script and its router login are on the Unraid flash drive, not in this repo; see [UNRAID.md → User Scripts](../UNRAID.md#user-scripts).
+
+- Names are cut down to what DNS allows, and the log shows them lowercase: `Paul's iPhone` becomes `pauls-iphone`, and a second `iPhone` becomes `iphone-2`.
+- The script replaces only records it wrote itself. A hand-made Local DNS record wins: an IP or name that already has one is left alone, so the Unraid host keeps its DuckDNS name.
+- A device whose IP changes keeps its old name until the next run. Give it a reserved IP in the router (LAN → DHCP Server → Manually Assigned IP) to avoid that.
+
+##### Why Not Conditional Forwarding
+
+Conditional forwarding (`FTLCONF_dns_revServers`) would let Pi-hole get device names by asking the router. With this setup it creates a **DNS loop**. It also couldn't show the custom names, because the router answers PTR lookups only with the devices' own DHCP hostnames.
 
 The router's upstream DNS is the two Pi-holes (Router DNS Configuration). Conditional forwarding sends the LAN's reverse zone (`X.168.192.in-addr.arpa`) to the router, plus every dotless name such as `local` (`server=//<router>` in Pi-hole's generated `dnsmasq.conf`). The router answers PTRs for its own DHCP leases, but forwards everything else upstream: back to a Pi-hole. "Forward local domain queries to upstream DNS = No" on the router doesn't stop it, because that covers only the router's own domain. Apple's constant service-discovery lookups (`lb._dns-sd._udp.0.X.168.192.in-addr.arpa`) and SOA `local` then circle until Pi-hole rate-limits the router, which refuses *every* query arriving through it.
 
-On 2026-10-11 this took query volume from ~60,000 to ~1,000,000 a day per host. The query history then outgrew FTL's shared memory and crashed the Unraid Pi-hole (`realloc_shm(): … No space left on device`); `shm_size` in the compose file now leaves room, but the loop was the cause. Breaking it on the router side means pointing the router's WAN DNS away from the Pi-holes, which sends router-relayed (IPv6) lookups and private-zone names to the ISP unfiltered. Device names aren't worth that. For devices that matter, add a Pi-hole **Local DNS record** instead; nebula-sync copies it to the other host.
+On 2026-10-11 this took query volume from ~60,000 to ~1,000,000 a day per host. The query history then outgrew FTL's shared memory and crashed the Unraid Pi-hole (`realloc_shm(): … No space left on device`); `shm_size` in the compose file now leaves room, but the loop was the cause. Breaking it on the router side means pointing the router's WAN DNS away from the Pi-holes, which sends router-relayed (IPv6) lookups and private-zone names to the ISP unfiltered. Device names aren't worth that, and the Local DNS records above give them without the loop.
 
 **Why a Pi-hole's IPv6 address must not be handed out as DNS**: Docker relays IPv6 connections to the published port 53 through its userland proxy, so Pi-hole logs them as the bridge gateway `172.18.0.1` instead of the device. Leave the router's IPv6 DNS fields blank.
 

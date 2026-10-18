@@ -26,6 +26,8 @@ Nothing on `/boot` is tracked here. It is backed up weekly to the Time Capsule
 |---|---|
 | `config/go` | Boot script. Starts the webGUI; installs the `gh` CLI from `config/gh/` (see FAT below); links the persistent parts of `/root` back in (see RAM disk below) |
 | `config/homelab-backup.conf` | Real values for the backup: Time Capsule host/share/credentials, `PI_DNS_HOST`, `PI_SSH_USER`. `chmod 600`, never in git |
+| `config/<device>.cred` | One login per device, `key=value` lines, `chmod 600`, never in git. `timecapsule.cred` (`username=`, `password=`; a `mount.cifs` credentials file), `router.cred` (`host=`, `username=`, `password=`: the ASUS admin login) |
+| `config/pihole-device-names.hosts` | The Local DNS records *Pi-hole device names* last wrote, so it replaces only its own |
 | `config/homelab-stacks.sh` | Shared stack functions, see [below](#shared-stack-functions) |
 | `config/plugins/user.scripts/scripts/<name>/script` | Each User Script |
 | `config/plugins/user.scripts/schedule.json` | User Scripts schedules |
@@ -149,6 +151,7 @@ Plugin: **User Scripts**. Scripts are under
 | Script | Schedule | Does |
 |---|---|---|
 | Backup to Time Capsule | Weekly, Sun 04:30 | Stops the stacks, copies `/boot`, appdata, the Immich DB dump and the Pi's `network-services` to the Time Capsule, restarts the stacks. Log: `/var/log/unraid_backup.log` |
+| Pi-hole device names | Daily, 03:30 (custom cron `30 3 * * *`) | Copies the router's client-list names into the Unraid Pi-hole's Local DNS records, so the query log shows them ([issue #2](https://github.com/pagrossi91/home-lab/issues/2), [network-services README](network-services/README.md#device-names-in-the-query-log)). Login: `router.cred`. Runs after Watchtower's 03:00 restart. Run by hand after renaming devices |
 | Docker Stacks Down | Manual | Stops all four stacks in order |
 | Docker Stacks Up | Manual | Starts all four stacks in order |
 | Copy from Time Capsule, Copy files with Clean File Paths and Names, Clean up dirs | Manual | One-off file migration helpers, not part of the stack setup |
@@ -163,6 +166,10 @@ editing a script doesn't affect a run already in progress.
 **Schedules:** change them in the UI (Settings → User Scripts). If editing
 `schedule.json` by hand, also copy it to `/tmp/user.scripts/schedule.json`;
 the runtime reads that cached copy and only refreshes it when it is missing.
+A **custom** cron schedule also needs its line in
+`/boot/config/plugins/user.scripts/customSchedule.cron`, then
+`/usr/local/sbin/update_cron` to load it into `/etc/cron.d/root`. The UI's
+Apply does both.
 
 ### Shared stack functions
 
@@ -200,7 +207,7 @@ in the UI as a runnable script. `PI_DNS_HOST` comes from
 
 | Plugin | Use |
 |---|---|
-| User Scripts | Backup and stack scripts above |
+| User Scripts | Backup, stack and Pi-hole name scripts above |
 | Community Applications | App/plugin installs |
 | Compose Manager | Doesn't start the stacks; its array-stop hook `compose stop`s them (projects folder = this repo) |
 | Appdata Backup | Installed; not configured (the User Scripts backup replaces it) |
