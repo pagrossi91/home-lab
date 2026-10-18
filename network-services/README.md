@@ -143,13 +143,7 @@ In most setups, this path is wherever you want. If you clone this step is alread
    ```
    **Why**: These directories are all the mounted volumes listed for the services in the `docker-compose.yml` file. Failure to initialize these volumes manually will result in permission errors.
 
-3. **Create log file**:
-   ```bash
-   touch ./pi-hole/var-log/pihole.log
-   ```
-   **Why**: Pi-hole container runs as user 999 and needs write permissions to the log file. If this file doesn't exist or has wrong permissions, Pi-hole will fail to start with error messages like "Permission denied: cannot create /var/log/pihole.log" or the container will exit with code 1.
-
-4. **Set permissions**:
+3. **Set permissions**:
    ```bash
    sudo chown -R 1000:1000 ./pi-hole ./dnscrypt ./swag ./portainer ./duckdns
    ```
@@ -539,7 +533,6 @@ docker logs dnscrypt-proxy | grep -i error
 **Prerequisites**: 
 - DNSCrypt Proxy must be running first
 - Manually create the volume directories in the docker-compose file. This should already have been completed in the Initial Setup section.
-- Manually create the `pihole.log` file from the docker-compose file. This should already have been completed in the Initial Setup section. 
 
 #### Docker Compose Configuration
 ```yaml
@@ -562,7 +555,7 @@ pihole:
   volumes:
     - '${APPDATA_DIR}/pi-hole/etc-pihole/:/etc/pihole/'
     - '${APPDATA_DIR}/pi-hole/etc-dnsmasq.d/:/etc/dnsmasq.d/'
-    - '${APPDATA_DIR}/pi-hole/var-log/pihole.log:/var/log/pihole.log'
+    - '${APPDATA_DIR}/pi-hole/var-log/:/var/log/pihole/'
   cap_add:
     - NET_ADMIN
     - SYS_TIME 
