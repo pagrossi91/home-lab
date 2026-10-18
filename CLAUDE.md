@@ -283,23 +283,3 @@ Pi), then `docker network inspect` to confirm.
 Databases (Plex, `*arr` sqlite, MariaDB, InfluxDB, Nextcloud) are copied live by
 default. For a consistent backup set `STOP_STACKS=1` in the backup script, which
 brings the stacks down first.
-
----
-
-## 5. Outstanding
-
-A history rewrite is **pending**: earlier commits on `master`, `unraid`, and
-`pihole` carry service config files that predate this policy, plus ~1.6 GB of
-Home Assistant backup tarballs. Untracking them stopped the bleeding; it did not
-remove them from GitHub.
-
-Sequence, in order — rotation first, because a force-push does not un-leak
-anything already scraped:
-
-1. Rotate every credential that ever appeared in a tracked file.
-2. `git clone --mirror`, `git filter-repo --invert-paths` the offending paths.
-3. `git push --force --mirror`, then re-clone anywhere else the repo exists.
-
-The working rotation checklist is kept **out of this repo** — it names live
-systems and belongs with the secrets, not next to them. Until step 3 lands,
-assume anything committed before this policy is public.
