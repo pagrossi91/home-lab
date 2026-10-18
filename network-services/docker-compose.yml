@@ -102,8 +102,7 @@ services:
     volumes: # Volumes store your data between container upgrades
       - ${APPDATA_DIR}/pi-hole/etc-pihole/:/etc/pihole/
       - ${APPDATA_DIR}/pi-hole/etc-dnsmasq.d/:/etc/dnsmasq.d/
-      # run `touch ./var-log/pihole.log` first unless you like errors (doing this grants the container user "write" permissions to the logs)
-      - ${APPDATA_DIR}/pi-hole/var-log/pihole.log:/var/log/pihole.log # pi-hole logs
+      - ${APPDATA_DIR}/pi-hole/var-log/:/var/log/pihole/ # pihole.log, FTL.log, webserver.log
     cap_add:
       - NET_ADMIN # Required if you are using Pi-hole as your DHCP server, else not needed
       - SYS_TIME 
